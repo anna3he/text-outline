@@ -17,9 +17,9 @@ The word starts as **Anna He**.
 3. Leave the stage. The points fade out, unless a selection is still active. The edited shape stays.
 4. Change the text, the typeface, or the letter spacing. The outlines rebuild, the word stays centred, and every drag is discarded.
 5. Reset points. The current word returns to the typeface. The point count stays where the dial left it.
-6. Vector points. A dial from 1 to 8. It only changes how many points appear on hover. It does not move or reshape the letters.
+6. Vector points. A dial from 1 to 8. 1 is sparse. 8 is the old minimum: every anchor on the typeface, and no denser. The dial only changes how many points appear on hover. It does not move or reshape the letters.
 7. Grid. Off by default. Turn it on and a stepped cell-size dial appears. Turn it off and that dial hides. The grid covers the whole screen, behind the panel, and zooms with the canvas.
-8. Zoom. Scroll or pinch the canvas. **Fit to screen** clears the zoom and centres the word in the current viewport.
+8. Zoom. Scroll or pinch the canvas. **Fit to screen** clears the zoom and places the word in the middle of the current viewport.
 9. Export SVG. Downloads the current outlines, cropped to the letterforms.
 10. Dark mode. A sun/moon icon in the top-right corner of the panel. Light is the default grey system. Dark inverts the field, panel, and letterforms. Points stay blue.
 
@@ -36,7 +36,7 @@ The panel is DialKit, inline.
 | Text | The word on the stage. Editing it resets drags. |
 | Font | Serif · LT Superior Semibold by default. Sans · Inter Semibold is the other option. Switching resets drags. |
 | Letter spacing | Tracking in ems, from −0.2 to 0.6. Changing it resets drags and recentres the word. |
-| Vector points | How many points show on hover, 1–8. Does not move the letters. |
+| Vector points | 1 is the fewest points. 8 shows every typeface anchor, which used to be the minimum. Does not move the letters. |
 | Grid | Shows or hides a grid across the whole screen. |
 | Grid size | Visible only while the grid is on. Cell size in pixels, stepped. |
 | Export SVG | Downloads an SVG fitted to the current outlines. |

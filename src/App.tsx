@@ -40,7 +40,7 @@ function buildDial(showGridSize: boolean, gridSize: number) {
       default: "serif",
     },
     letterSpacing: [0, -0.2, 0.6, 0.01] as [number, number, number, number],
-    vectorPoints: [3, 1, 8, 1] as [number, number, number, number],
+    vectorPoints: [1, 1, 8, 1] as [number, number, number, number],
     grid: false,
     ...(showGridSize
       ? { gridSize: [gridSize, 8, 160, 4] as [number, number, number, number] }
@@ -455,10 +455,10 @@ export default function App() {
         <button
           type="button"
           className="fit"
+          onPointerDown={(event) => event.stopPropagation()}
           onClick={() => {
-            const rect = stageRef.current?.getBoundingClientRect();
-            if (rect) setSize({ w: rect.width, h: rect.height });
-            setView(IDENTITY_VIEW);
+            setSize({ w: window.innerWidth, h: window.innerHeight });
+            setView({ zoom: 1, panX: 0, panY: 0 });
           }}
         >
           Fit to screen

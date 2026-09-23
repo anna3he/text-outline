@@ -230,10 +230,12 @@ export function computeFit(width: number, height: number, bounds: Bounds | null,
   const margin = Math.min(width, height) * 0.1 + 36;
   const marginX = Math.max(margin, padX);
   const scale = Math.min((width - marginX * 2) / bw, (height - margin * 2) / bh);
+  const midX = (bounds.minX + bounds.maxX) / 2;
+  const midY = (bounds.minY + bounds.maxY) / 2;
   return {
     scale,
-    tx: (width - bw * scale) / 2 - bounds.minX * scale,
-    ty: (height - bh * scale) / 2 - bounds.minY * scale,
+    tx: width / 2 - midX * scale,
+    ty: height / 2 - midY * scale,
   };
 }
 
@@ -348,25 +350,27 @@ export type CurvePoint = {
   y: number;
 };
 
-/** Samples along the current curves. Density never rebuilds or moves the outlines. */
-export function pointsAlong(outlines: Outline[], density: number): CurvePoint[] {
-  const steps = Math.max(1, Math.round(density));
+/**
+ * Hover points only. Level 8 shows every anchor — the old minimum.
+ * Level 1 keeps about an eighth of those anchors, spread around each contour.
+ * The filled outline does not move.
+ */
+export function pointsAlong(outlines: Outline[], level: number): CurvePoint[] {
+  const detail = Math.min(8, Math.max(1, Math.round(level)));
   const points: CurvePoint[] = [];
   outlines.forEach((outline, contour) => {
     const count = outline.anchors.length;
-    for (let seg = 0; seg < count; seg++) {
-      const start = outline.anchors[seg];
-      const end = outline.anchors[(seg + 1) % count];
-      const cubic = outline.segs[seg];
-      if (!start || !end || !cubic) continue;
-      for (let step = 0; step < steps; step++) {
-        const t = step / steps;
-        const at =
-          t === 0
-            ? { x: start.x, y: start.y }
-            : cubicAt(start.x, start.y, cubic.c1x, cubic.c1y, cubic.c2x, cubic.c2y, end.x, end.y, t);
-        points.push({ contour, seg, t, x: at.x, y: at.y });
-      }
+    if (count === 0) return;
+    const want = detail >= 8 ? count : Math.max(1, Math.round((count * detail) / 8));
+    const take = Math.min(count, want);
+    const used = new Set<number>();
+    for (let i = 0; i < take; i++) {
+      const index = Math.floor((i * count) / take) % count;
+      if (used.has(index)) continue;
+      used.add(index);
+      const anchor = outline.anchors[index];
+      if (!anchor) continue;
+      points.push({ contour, seg: index, t: 0, x: anchor.x, y: anchor.y });
     }
   });
   return points;
@@ -525,26 +529,6 @@ export function svgDocument(outlines: Outline[], fill: string): string {
   const w = num(width);
   const h = num(height);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="${fill}"><path d="${d}"/></svg>`;
-}
-
-function cubicAt(
-  x0: number,
-  y0: number,
-  c1x: number,
-  c1y: number,
-  c2x: number,
-  c2y: number,
-  x1: number,
-  y1: number,
-  t: number,
-): Vec {
-  const u = 1 - t;
-  const uu = u * u;
-  const tt = t * t;
-  return {
-    x: uu * u * x0 + 3 * uu * t * c1x + 3 * u * tt * c2x + tt * t * x1,
-    y: uu * u * y0 + 3 * uu * t * c1y + 3 * u * tt * c2y + tt * t * y1,
-  };
 }
 
 export function pointCount(outlines: Outline[]): number {

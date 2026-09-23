@@ -4,6 +4,7 @@ import {
   applyWarp,
   boundsOfContours,
   commandsToContours,
+  computeFit,
   contoursToOutline,
   curvesInRect,
   hitCurve,
@@ -91,21 +92,19 @@ assert.equal(inside[0].anchor, 1);
 const master = contoursToOutline(square, 1);
 const before = outlinePath(master, { scale: 1, tx: 0, ty: 0 });
 const sparse = pointsAlong(master, 1);
-const dense = pointsAlong(master, 4);
-assert.equal(sparse.length, 4);
-assert.equal(dense.length, 16);
+const full = pointsAlong(master, 8);
+assert.equal(full.length, 4);
+assert.equal(sparse.length, 1);
+assert.ok(sparse.length < full.length);
 assert.equal(outlinePath(master, { scale: 1, tx: 0, ty: 0 }), before);
-const mid = dense.find((point) => point.seg === 0 && point.t === 0.5);
-assert.ok(mid);
-assert.ok(Math.abs(mid.x - 50) < 0.01);
-assert.ok(Math.abs(mid.y) < 0.01);
+assert.equal(sparse[0]?.t, 0);
 
-const hit = hitCurve(50, 0, dense, { scale: 1, tx: 0, ty: 0 }, 8);
+const hit = hitCurve(0, 0, full, { scale: 1, tx: 0, ty: 0 }, 8);
+assert.equal(hit?.t, 0);
 assert.equal(hit?.seg, 0);
-assert.equal(hit?.t, 0.5);
 
-const boxed = curvesInRect(dense, { scale: 1, tx: 0, ty: 0 }, { x0: 40, y0: -4, x1: 80, y1: 4 });
-assert.ok(boxed.length >= 1);
+const boxed = curvesInRect(full, { scale: 1, tx: 0, ty: 0 }, { x0: 90, y0: -10, x1: 110, y1: 10 });
+assert.equal(boxed.length, 1);
 
 const editable = contoursToOutline(square, 1);
 const pinned = pinCurvePoints(editable, [
@@ -121,6 +120,10 @@ assert.equal(outlinePath(contoursToOutline(square, 1), { scale: 1, tx: 0, ty: 0 
 const svg = svgDocument(contoursToOutline(square, 1), "#c9c9c5");
 assert.match(svg, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);
 assert.match(svg, /<path d="M/);
+
+const centered = computeFit(1440, 900, { minX: 0, minY: -100, maxX: 200, maxY: 0 });
+assert.ok(Math.abs(100 * centered.scale + centered.tx - 720) < 0.01);
+assert.ok(Math.abs(-50 * centered.scale + centered.ty - 450) < 0.01);
 
 const baseFit = { scale: 2, tx: 10, ty: 20 };
 assert.deepEqual(composeView(baseFit, IDENTITY_VIEW, 400, 200), baseFit);
