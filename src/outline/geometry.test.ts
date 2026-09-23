@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  anchorsInRect,
   applyWarp,
   boundsOfContours,
   commandsToContours,
@@ -73,5 +74,10 @@ assert.deepEqual(bounds, { minX: 0, minY: 0, maxX: 100, maxY: 40 });
 const path = outlinePath(coarse, { scale: 1, tx: 0, ty: 0 });
 assert.match(path, /^M/);
 assert.match(path, /Z$/);
+
+const fresh = contoursToOutline(square, 1);
+const inside = anchorsInRect(fresh, { scale: 1, tx: 0, ty: 0 }, { x0: 90, y0: -10, x1: 110, y1: 10 });
+assert.equal(inside.length, 1);
+assert.equal(inside[0].anchor, 1);
 
 console.log("geometry ok");

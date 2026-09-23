@@ -263,6 +263,27 @@ export function unproject(x: number, y: number, fit: Fit): [number, number] {
   return [(x - fit.tx) / fit.scale, (y - fit.ty) / fit.scale];
 }
 
+export type PointRef = { contour: number; anchor: number };
+
+export function anchorsInRect(
+  outlines: Outline[],
+  fit: Fit,
+  rect: { x0: number; y0: number; x1: number; y1: number },
+): PointRef[] {
+  const left = Math.min(rect.x0, rect.x1);
+  const right = Math.max(rect.x0, rect.x1);
+  const top = Math.min(rect.y0, rect.y1);
+  const bottom = Math.max(rect.y0, rect.y1);
+  const hits: PointRef[] = [];
+  outlines.forEach((outline, contour) => {
+    outline.anchors.forEach((anchor, index) => {
+      const [x, y] = project(anchor.x, anchor.y, fit);
+      if (x >= left && x <= right && y >= top && y <= bottom) hits.push({ contour, anchor: index });
+    });
+  });
+  return hits;
+}
+
 export function hitTest(
   x: number,
   y: number,

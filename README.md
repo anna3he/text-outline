@@ -1,8 +1,8 @@
 # Outline
 
-A small type editor. The word starts as **Anna He**. Hover it to reveal vector points, then drag a point to reshape the letters.
+A small type editor. The word starts as **Anna He** in Inter Semibold. Hover it to reveal vector points, drag one point, or drag a box around several and move them together.
 
-The side panel is [DialKit](https://www.dialkit.dev/): change the text, dial more or fewer points, switch light and dark, or reset the outlines. Changing the text clears any drags.
+The panel sits on the right and is only as tall as its controls. [DialKit](https://www.dialkit.dev/) holds the text, a typeface menu (Inter Semibold or LT Superior Semibold), the point-density dial, and reset. A sun/moon icon in the panel’s top-right corner switches light and dark. Changing the text or typeface clears any drags.
 
 The palette is a light grey system — warm off-white field, white panel, pale letterforms — with Figma-blue anchors (`#0D99FF`).
 
