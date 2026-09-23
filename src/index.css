@@ -73,25 +73,23 @@ input {
 
 .app {
   min-height: 100dvh;
-  height: 100dvh;
-  display: flex;
-  flex-direction: column;
   background: var(--bg);
 }
 
 .panel {
-  position: relative;
+  position: fixed;
   z-index: 4;
-  flex: none;
-  width: min(360px, calc(100vw - 20px));
-  margin: 0 auto 12px;
+  right: 14px;
+  bottom: 14px;
+  width: min(340px, calc(100vw - 28px));
+  margin: 0;
   padding: 18px 16px 14px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow);
   height: fit-content;
-  max-height: min(46dvh, 480px);
+  max-height: min(72dvh, 560px);
   overflow: auto;
 }
 
@@ -176,33 +174,8 @@ input {
 }
 
 .stage {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-}
-
-.fit {
-  position: absolute;
-  z-index: 3;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
-  padding: 7px 12px;
-  color: var(--ink);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  box-shadow: 0 1px 2px rgba(20, 20, 20, 0.03);
-  font-size: 12.5px;
-  font-weight: 450;
-  letter-spacing: -0.011em;
-  line-height: 1.2;
-  cursor: pointer;
-}
-
-.fit:hover {
-  background: var(--bg);
+  position: fixed;
+  inset: 0;
 }
 
 .chip {
@@ -314,12 +287,9 @@ input {
 
 @media (max-width: 800px) {
   .panel {
-    width: min(360px, calc(100vw - 16px));
-    margin-bottom: 8px;
-    max-height: min(42dvh, 420px);
-  }
-
-  .fit {
+    right: 10px;
     bottom: 10px;
+    width: min(340px, calc(100vw - 20px));
+    max-height: min(58dvh, 460px);
   }
 }

@@ -522,7 +522,9 @@ export function svgDocument(outlines: Outline[], fill: string): string {
   const width = bounds.maxX - bounds.minX + pad * 2;
   const height = bounds.maxY - bounds.minY + pad * 2;
   const d = outlinePath(outlines, { scale: 1, tx: -(bounds.minX - pad), ty: -(bounds.minY - pad) });
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${num(width)} ${num(height)}" fill="${fill}"><path d="${d}"/></svg>`;
+  const w = num(width);
+  const h = num(height);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="${fill}"><path d="${d}"/></svg>`;
 }
 
 function cubicAt(

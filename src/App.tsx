@@ -34,10 +34,10 @@ function buildDial(showGridSize: boolean, gridSize: number) {
     typeface: {
       type: "select" as const,
       options: [
-        { value: "sans", label: "Sans · Inter" },
         { value: "serif", label: "Serif · LT Superior" },
+        { value: "sans", label: "Sans · Inter" },
       ],
-      default: "sans",
+      default: "serif",
     },
     letterSpacing: [0, -0.2, 0.6, 0.01] as [number, number, number, number],
     vectorPoints: [3, 1, 8, 1] as [number, number, number, number],
@@ -45,7 +45,7 @@ function buildDial(showGridSize: boolean, gridSize: number) {
     ...(showGridSize
       ? { gridSize: [gridSize, 8, 160, 4] as [number, number, number, number] }
       : {}),
-    copySvg: { type: "action" as const, label: "Copy SVG" },
+    exportSvg: { type: "action" as const, label: "Export SVG" },
     reset: { type: "action" as const, label: "Reset points" },
   };
 }
@@ -72,7 +72,7 @@ export default function App() {
   const params = useDialKit("Type", dial, {
     onAction: (path) => {
       if (path === "reset") resetRef.current();
-      if (path === "copySvg") void copyRef.current();
+      if (path === "exportSvg") exportRef.current();
     },
   });
 
@@ -82,7 +82,7 @@ export default function App() {
   const density = Math.max(1, Math.round(params.vectorPoints));
   const spacing = Math.round(params.letterSpacing * 100) / 100;
   const text = params.text;
-  const face: Face = params.typeface === "serif" ? "serif" : "sans";
+  const face: Face = params.typeface === "sans" ? "sans" : "serif";
   const gridOn = params.grid;
   const gridSizeValue = "gridSize" in params ? params.gridSize : undefined;
   if (typeof gridSizeValue === "number") gridSizeHeld.current = gridSizeValue;
@@ -105,7 +105,7 @@ export default function App() {
   const gestureRef = useRef<Gesture | null>(null);
   const selectionRef = useRef<CurvePoint[]>([]);
   const resetRef = useRef<() => void>(() => {});
-  const copyRef = useRef<() => void>(() => {});
+  const exportRef = useRef<() => void>(() => {});
 
   const stageRef = useRef<HTMLElement>(null);
   const [fontsReady, setFontsReady] = useState(false);
@@ -243,20 +243,28 @@ export default function App() {
     bump();
   };
 
-  copyRef.current = () => {
-    if (outlinesRef.current.length === 0) return;
-    const fill = getComputedStyle(document.documentElement).getPropertyValue("--glyph").trim() || "#c9c9c5";
-    const markup = svgDocument(outlinesRef.current, fill);
-    if (!markup) return;
-    const done = (label: string) => setNotice(label);
-    if (navigator.clipboard?.writeText) {
-      void navigator.clipboard.writeText(markup).then(
-        () => done("Copied SVG"),
-        () => done("Couldn’t copy"),
-      );
+  exportRef.current = () => {
+    if (outlinesRef.current.length === 0) {
+      setNotice("Nothing to export");
       return;
     }
-    done("Couldn’t copy");
+    const fill = getComputedStyle(document.documentElement).getPropertyValue("--glyph").trim() || "#c9c9c5";
+    const markup = svgDocument(outlinesRef.current, fill);
+    if (!markup) {
+      setNotice("Nothing to export");
+      return;
+    }
+    const blob = new Blob([markup], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const slug = text.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "outline";
+    link.href = url;
+    link.download = `${slug}.svg`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setNotice("Exported SVG");
   };
 
   const outlines = outlinesRef.current;
@@ -494,9 +502,6 @@ export default function App() {
             ) : null}
           </svg>
         ) : null}
-        <button type="button" className="fit" onClick={() => setView(IDENTITY_VIEW)}>
-          Fit to screen
-        </button>
       </main>
 
       <aside className="panel">
