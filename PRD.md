@@ -6,7 +6,7 @@ Reshaping a word should feel like editing vectors in Figma: points on the outlin
 
 ## Product
 
-One screen. A word centred on the viewport. A compact control panel floats on the right and is only as tall as its contents. The panel does not shift the centre: the same gap is kept on the left, so the letters stay clear of the controls.
+One screen. A word centred in the canvas. A compact control panel sits at the bottom on every screen size, only as tall as its contents, so it stays out of the letters.
 
 The word starts as **Anna He**.
 
@@ -18,9 +18,10 @@ The word starts as **Anna He**.
 4. Change the text, the typeface, or the letter spacing. The outlines rebuild, the word stays centred, and every drag is discarded.
 5. Reset points. The current word returns to the typeface. The point count stays where the dial left it.
 6. Vector points. A dial from 1 to 8. It only changes how many points appear on hover. It does not move or reshape the letters.
-7. Grid. Off by default. Turn it on, then set the cell size with a stepped dial (the number can be typed). Lines pass through the centre of the screen.
-8. Copy SVG. Writes the current outlines to the clipboard.
-9. Dark mode. A sun/moon icon in the top-right corner of the panel. Light is the default grey system. Dark inverts the field, panel, and letterforms. Points stay blue.
+7. Grid. Off by default. Turn it on and a stepped cell-size dial appears. Turn it off and that dial hides. Lines pass through the centre and zoom with the canvas.
+8. Zoom. Scroll or pinch the canvas. **Fit to screen**, at the bottom of the canvas, recentres the word.
+9. Copy SVG. Writes the current outlines to the clipboard.
+10. Dark mode. A sun/moon icon in the top-right corner of the panel. Light is the default grey system. Dark inverts the field, panel, and letterforms. Points stay blue.
 
 Points are hidden until hover (or the first touch). The point under the pointer fills blue. The others are white with a blue ring, like Figma anchors.
 
@@ -35,7 +36,7 @@ The panel is DialKit, inline.
 | Letter spacing | Tracking in ems, from −0.2 to 0.6. Changing it resets drags and recentres the word. |
 | Vector points | How many points show on hover, 1–8. Does not move the letters. |
 | Grid | Shows or hides a centred grid. |
-| Grid size | Cell size in pixels, stepped. Type a number to set it exactly. |
+| Grid size | Visible only while the grid is on. Cell size in pixels, stepped. |
 | Copy SVG | Copies the current outlines as SVG. |
 | Reset points | Restores the current word’s outlines. |
 | Theme icon | Top-right of the panel. Sun for light, moon for dark. |

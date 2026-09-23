@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DialRoot, useDialKit } from "dialkit";
 import "dialkit/styles.css";
 import type { Font } from "opentype.js";
 import {
   boundsOfContours,
+  composeView,
   computeFit,
   contoursToOutline,
   curvesInRect,
@@ -12,35 +13,42 @@ import {
   outlinePath,
   pinCurvePoints,
   pointsAlong,
+  IDENTITY_VIEW,
   project,
   svgDocument,
   unproject,
+  zoomView,
   type Bounds,
   type CurvePoint,
   type Fit,
   type OrigContour,
   type Outline,
   type Sample,
+  type View,
 } from "./outline/geometry";
 import { loadTypeface, textToContours } from "./outline/text";
 
-const DIAL = {
-  text: { type: "text" as const, default: "Anna He", placeholder: "Type a word" },
-  typeface: {
-    type: "select" as const,
-    options: [
-      { value: "sans", label: "Sans · Inter" },
-      { value: "serif", label: "Serif · LT Superior" },
-    ],
-    default: "sans",
-  },
-  letterSpacing: [0, -0.2, 0.6, 0.01] as [number, number, number, number],
-  vectorPoints: [3, 1, 8, 1] as [number, number, number, number],
-  grid: false,
-  gridSize: [40, 8, 160, 4] as [number, number, number, number],
-  copySvg: { type: "action" as const, label: "Copy SVG" },
-  reset: { type: "action" as const, label: "Reset points" },
-};
+function buildDial(showGridSize: boolean, gridSize: number) {
+  return {
+    text: { type: "text" as const, default: "Anna He", placeholder: "Type a word" },
+    typeface: {
+      type: "select" as const,
+      options: [
+        { value: "sans", label: "Sans · Inter" },
+        { value: "serif", label: "Serif · LT Superior" },
+      ],
+      default: "sans",
+    },
+    letterSpacing: [0, -0.2, 0.6, 0.01] as [number, number, number, number],
+    vectorPoints: [3, 1, 8, 1] as [number, number, number, number],
+    grid: false,
+    ...(showGridSize
+      ? { gridSize: [gridSize, 8, 160, 4] as [number, number, number, number] }
+      : {}),
+    copySvg: { type: "action" as const, label: "Copy SVG" },
+    reset: { type: "action" as const, label: "Reset points" },
+  };
+}
 
 const FACES = {
   sans: "/fonts/Inter-SemiBold.ttf",
@@ -51,13 +59,17 @@ type Face = keyof typeof FACES;
 
 type Gesture =
   | { kind: "move"; points: CurvePoint[]; x: number; y: number }
-  | { kind: "marquee"; x0: number; y0: number; x1: number; y1: number };
+  | { kind: "marquee"; x0: number; y0: number; x1: number; y1: number }
+  | { kind: "pinch" };
 
 const pointKey = (point: Pick<CurvePoint, "contour" | "seg" | "t">) =>
   `${point.contour}:${point.seg}:${point.t.toFixed(4)}`;
 
 export default function App() {
-  const params = useDialKit("Type", DIAL, {
+  const gridSizeHeld = useRef(40);
+  const [gridOpen, setGridOpen] = useState(false);
+  const dial = useMemo(() => buildDial(gridOpen, gridSizeHeld.current), [gridOpen]);
+  const params = useDialKit("Type", dial, {
     onAction: (path) => {
       if (path === "reset") resetRef.current();
       if (path === "copySvg") void copyRef.current();
@@ -66,12 +78,15 @@ export default function App() {
 
   const [dark, setDark] = useState(false);
   const [notice, setNotice] = useState("");
+  const [view, setView] = useState<View>(IDENTITY_VIEW);
   const density = Math.max(1, Math.round(params.vectorPoints));
   const spacing = Math.round(params.letterSpacing * 100) / 100;
   const text = params.text;
   const face: Face = params.typeface === "serif" ? "serif" : "sans";
   const gridOn = params.grid;
-  const gridSize = Math.max(4, params.gridSize);
+  const gridSizeValue = "gridSize" in params ? params.gridSize : undefined;
+  if (typeof gridSizeValue === "number") gridSizeHeld.current = gridSizeValue;
+  const gridSize = Math.max(4, gridSizeHeld.current);
 
   const fontsRef = useRef<Partial<Record<Face, Font>>>({});
   const origRef = useRef<OrigContour[]>([]);
@@ -84,6 +99,9 @@ export default function App() {
   const spacingRef = useRef<number | null>(null);
   const densityRef = useRef(density);
   const fitRef = useRef<Fit>({ scale: 1, tx: 0, ty: 0 });
+  const viewRef = useRef(view);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ zoom: number; panX: number; panY: number; dist: number; cx: number; cy: number } | null>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const selectionRef = useRef<CurvePoint[]>([]);
   const resetRef = useRef<() => void>(() => {});
@@ -101,6 +119,11 @@ export default function App() {
   const [marquee, setMarquee] = useState<Gesture & { kind: "marquee" } | null>(null);
 
   const bump = () => setTick((value) => value + 1);
+  viewRef.current = view;
+
+  useEffect(() => {
+    setGridOpen((open) => (open === gridOn ? open : gridOn));
+  }, [gridOn]);
 
   const replaceSelection = (points: CurvePoint[]) => {
     selectionRef.current = points;
@@ -127,7 +150,23 @@ export default function App() {
       setSize({ w: box.width, h: box.height });
     });
     observer.observe(stage);
-    return () => observer.disconnect();
+    const onWheel = (event: WheelEvent) => {
+      if (!boundsRef.current) return;
+      event.preventDefault();
+      const rect = stage.getBoundingClientRect();
+      const delta =
+        event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * rect.height : event.deltaY;
+      const factor = Math.exp(-delta * 0.0015);
+      const base = computeFit(rect.width, rect.height, boundsRef.current);
+      setView((current) =>
+        zoomView(current, base, rect.width, rect.height, event.clientX - rect.left, event.clientY - rect.top, current.zoom * factor),
+      );
+    };
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      observer.disconnect();
+      stage.removeEventListener("wheel", onWheel);
+    };
   }, []);
 
   useEffect(() => {
@@ -176,6 +215,7 @@ export default function App() {
       faceRef.current = face;
       spacingRef.current = spacing;
       densityRef.current = density;
+      setView(IDENTITY_VIEW);
       bump();
       return;
     }
@@ -222,8 +262,8 @@ export default function App() {
   const outlines = outlinesRef.current;
   const curvePoints = pointsRef.current;
   void tick;
-  const sideClearance = size.w > 940 ? 328 : 0;
-  const fit = computeFit(size.w, size.h, boundsRef.current, sideClearance);
+  const baseFit = computeFit(size.w, size.h, boundsRef.current);
+  const fit = composeView(baseFit, view, size.w, size.h);
   fitRef.current = fit;
   const path = outlinePath(outlines, fit);
   const count = curvePoints.length;
@@ -234,6 +274,21 @@ export default function App() {
   const preview = marquee ? curvesInRect(curvePoints, fit, marquee) : [];
   const marked = new Set((marquee ? preview : selection).map(pointKey));
   const hotKey = hot ? pointKey(hot) : "";
+
+  const pinchSnapshot = () => {
+    const pair = [...pointersRef.current.values()];
+    const a = pair[0];
+    const b = pair[1];
+    if (!a || !b) return null;
+    return {
+      zoom: viewRef.current.zoom,
+      panX: viewRef.current.panX,
+      panY: viewRef.current.panY,
+      dist: Math.hypot(a.x - b.x, a.y - b.y),
+      cx: (a.x + b.x) / 2,
+      cy: (a.y + b.y) / 2,
+    };
+  };
 
   const localPoint = (event: React.PointerEvent<SVGSVGElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -246,6 +301,15 @@ export default function App() {
   const onPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!showWord) return;
     const point = localPoint(event);
+    pointersRef.current.set(event.pointerId, point);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    if (pointersRef.current.size >= 2) {
+      gestureRef.current = { kind: "pinch" };
+      pinchRef.current = pinchSnapshot();
+      setDragging(true);
+      setMarquee(null);
+      return;
+    }
     const hit = hitCurve(point.x, point.y, pointsRef.current, fitRef.current);
     setPointsOn(true);
     if (hit) {
@@ -266,13 +330,40 @@ export default function App() {
       setMarquee(next);
       setDragging(true);
     }
-    event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const onPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!showWord) return;
     const point = localPoint(event);
+    if (pointersRef.current.has(event.pointerId)) pointersRef.current.set(event.pointerId, point);
     const gesture = gestureRef.current;
+    if (gesture?.kind === "pinch") {
+      const pinch = pinchRef.current;
+      const pair = [...pointersRef.current.values()];
+      if (!pinch || pair.length < 2 || pinch.dist < 1) return;
+      const [a, b] = pair;
+      if (!a || !b) return;
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const cx = (a.x + b.x) / 2;
+      const cy = (a.y + b.y) / 2;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const base = computeFit(rect.width, rect.height, boundsRef.current);
+      const next = zoomView(
+        { zoom: pinch.zoom, panX: pinch.panX, panY: pinch.panY },
+        base,
+        rect.width,
+        rect.height,
+        pinch.cx,
+        pinch.cy,
+        pinch.zoom * (dist / pinch.dist),
+      );
+      setView({
+        zoom: next.zoom,
+        panX: next.panX + (cx - pinch.cx),
+        panY: next.panY + (cy - pinch.cy),
+      });
+      return;
+    }
     if (!gesture) {
       const hit = hitCurve(point.x, point.y, pointsRef.current, fitRef.current);
       setHot((current) => {
@@ -305,8 +396,18 @@ export default function App() {
   };
 
   const endDrag = (event: React.PointerEvent<SVGSVGElement>) => {
+    pointersRef.current.delete(event.pointerId);
+    if (pointersRef.current.size >= 2) {
+      pinchRef.current = pinchSnapshot();
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      return;
+    }
+    if (pointersRef.current.size === 1) pinchRef.current = null;
     const gesture = gestureRef.current;
     gestureRef.current = null;
+    pinchRef.current = null;
     setDragging(false);
     if (gesture?.kind === "marquee") {
       const span = Math.hypot(gesture.x1 - gesture.x0, gesture.y1 - gesture.y0);
@@ -362,7 +463,9 @@ export default function App() {
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
           >
-            {gridOn ? <path d={gridPath(size.w, size.h, gridSize)} className="grid" /> : null}
+            {gridOn ? (
+              <path d={gridPath(size.w, size.h, gridSize, view.zoom, view.panX, view.panY)} className="grid" />
+            ) : null}
             <path d={path} className="glyphs" />
             <g className={`points${showPoints ? " is-on" : ""}`}>
               {curvePoints.map((anchor) => {
@@ -391,6 +494,9 @@ export default function App() {
             ) : null}
           </svg>
         ) : null}
+        <button type="button" className="fit" onClick={() => setView(IDENTITY_VIEW)}>
+          Fit to screen
+        </button>
       </main>
 
       <aside className="panel">
@@ -421,10 +527,10 @@ function pointKeyOrEmpty(point: CurvePoint | null) {
   return point ? pointKey(point) : "";
 }
 
-function gridPath(width: number, height: number, gap: number) {
-  const size = Math.max(4, gap);
-  const originX = width / 2 - Math.ceil(width / 2 / size) * size;
-  const originY = height / 2 - Math.ceil(height / 2 / size) * size;
+function gridPath(width: number, height: number, gap: number, zoom: number, panX: number, panY: number) {
+  const size = Math.max(4, gap * zoom);
+  const originX = width / 2 + panX - Math.ceil((width / 2 + panX) / size) * size;
+  const originY = height / 2 + panY - Math.ceil((height / 2 + panY) / size) * size;
   let d = "";
   for (let x = originX; x <= width + 0.5; x += size) d += `M${trim(x)} 0V${trim(height)}`;
   for (let y = originY; y <= height + 0.5; y += size) d += `M0 ${trim(y)}H${trim(width)}`;

@@ -264,6 +264,38 @@ export function unproject(x: number, y: number, fit: Fit): [number, number] {
   return [(x - fit.tx) / fit.scale, (y - fit.ty) / fit.scale];
 }
 
+export type View = { zoom: number; panX: number; panY: number };
+
+export const IDENTITY_VIEW: View = { zoom: 1, panX: 0, panY: 0 };
+
+export function composeView(base: Fit, view: View, width: number, height: number): Fit {
+  return {
+    scale: base.scale * view.zoom,
+    tx: base.tx * view.zoom + (width / 2) * (1 - view.zoom) + view.panX,
+    ty: base.ty * view.zoom + (height / 2) * (1 - view.zoom) + view.panY,
+  };
+}
+
+export function zoomView(
+  view: View,
+  base: Fit,
+  width: number,
+  height: number,
+  px: number,
+  py: number,
+  nextZoom: number,
+): View {
+  const zoom = Math.min(16, Math.max(0.25, nextZoom));
+  const current = composeView(base, view, width, height);
+  const [fx, fy] = unproject(px, py, current);
+  const scale = base.scale * zoom;
+  return {
+    zoom,
+    panX: px - fx * scale - base.tx * zoom - (width / 2) * (1 - zoom),
+    panY: py - fy * scale - base.ty * zoom - (height / 2) * (1 - zoom),
+  };
+}
+
 export type PointRef = { contour: number; anchor: number };
 
 export function anchorsInRect(

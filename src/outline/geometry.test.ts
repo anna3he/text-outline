@@ -9,6 +9,8 @@ import {
   hitCurve,
   moveAnchor,
   offsetAt,
+  composeView,
+  IDENTITY_VIEW,
   outlinePath,
   pinCurvePoints,
   pointCount,
@@ -16,6 +18,7 @@ import {
   refineOutline,
   svgDocument,
   upsertSample,
+  zoomView,
   type Sample,
 } from "./geometry.ts";
 
@@ -118,5 +121,13 @@ assert.equal(outlinePath(contoursToOutline(square, 1), { scale: 1, tx: 0, ty: 0 
 const svg = svgDocument(contoursToOutline(square, 1), "#c9c9c5");
 assert.match(svg, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);
 assert.match(svg, /<path d="M/);
+
+const baseFit = { scale: 2, tx: 10, ty: 20 };
+assert.deepEqual(composeView(baseFit, IDENTITY_VIEW, 400, 200), baseFit);
+const zoomed = zoomView(IDENTITY_VIEW, baseFit, 400, 200, 80, 40, 2);
+const zoomedFit = composeView(baseFit, zoomed, 400, 200);
+const [fx, fy] = [(80 - baseFit.tx) / baseFit.scale, (40 - baseFit.ty) / baseFit.scale];
+assert.ok(Math.abs(fx * zoomedFit.scale + zoomedFit.tx - 80) < 0.01);
+assert.ok(Math.abs(fy * zoomedFit.scale + zoomedFit.ty - 40) < 0.01);
 
 console.log("geometry ok");
