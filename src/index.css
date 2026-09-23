@@ -21,6 +21,7 @@
   --muted: #8a8a88;
   --line: #e6e6e3;
   --glyph: #c9c9c5;
+  --grid: rgba(28, 28, 28, 0.08);
   --point-fill: #ffffff;
   --point-stroke: #0d99ff;
   --point-hot: #0d99ff;
@@ -39,6 +40,7 @@
   --muted: #8e8e8e;
   --line: #2c2c2c;
   --glyph: #4a4a4a;
+  --grid: rgba(242, 242, 242, 0.1);
   --point-fill: #161616;
   --point-stroke: #3aa0ff;
   --point-hot: #3aa0ff;
@@ -71,15 +73,16 @@ input {
 
 .app {
   min-height: 100dvh;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
   background: var(--bg);
 }
 
 .panel {
+  position: fixed;
+  z-index: 4;
+  top: 14px;
+  right: 14px;
   width: 300px;
-  margin: 14px;
+  margin: 0;
   padding: 18px 16px 14px;
   background: var(--panel);
   border: 1px solid var(--line);
@@ -100,7 +103,7 @@ input {
 .mast h1 {
   margin: 0;
   font-family: "Inter Local", "Inter", ui-sans-serif, system-ui, sans-serif;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
   letter-spacing: -0.04em;
   line-height: 1.15;
@@ -171,7 +174,8 @@ input {
 }
 
 .stage {
-  position: relative;
+  position: fixed;
+  inset: 0;
   min-width: 0;
   min-height: 100dvh;
 }
@@ -208,6 +212,13 @@ input {
 
 .stage.is-selecting .canvas {
   cursor: crosshair;
+}
+
+.grid {
+  fill: none;
+  stroke: var(--grid);
+  stroke-width: 1;
+  pointer-events: none;
 }
 
 .glyphs {
@@ -277,21 +288,14 @@ input {
 }
 
 @media (max-width: 800px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-
   .panel {
-    width: auto;
-    margin: 0 10px 10px;
-    max-height: none;
+    top: 10px;
+    right: 10px;
+    width: min(300px, calc(100vw - 20px));
+    max-height: min(46dvh, calc(100dvh - 20px));
   }
 
   .stage {
-    min-height: 62dvh;
-  }
-
-  .mast h1 {
-    font-size: 20px;
+    min-height: 100dvh;
   }
 }

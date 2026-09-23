@@ -5,11 +5,16 @@ import {
   boundsOfContours,
   commandsToContours,
   contoursToOutline,
+  curvesInRect,
+  hitCurve,
   moveAnchor,
   offsetAt,
   outlinePath,
+  pinCurvePoints,
   pointCount,
+  pointsAlong,
   refineOutline,
+  svgDocument,
   upsertSample,
   type Sample,
 } from "./geometry.ts";
@@ -79,5 +84,39 @@ const fresh = contoursToOutline(square, 1);
 const inside = anchorsInRect(fresh, { scale: 1, tx: 0, ty: 0 }, { x0: 90, y0: -10, x1: 110, y1: 10 });
 assert.equal(inside.length, 1);
 assert.equal(inside[0].anchor, 1);
+
+const master = contoursToOutline(square, 1);
+const before = outlinePath(master, { scale: 1, tx: 0, ty: 0 });
+const sparse = pointsAlong(master, 1);
+const dense = pointsAlong(master, 4);
+assert.equal(sparse.length, 4);
+assert.equal(dense.length, 16);
+assert.equal(outlinePath(master, { scale: 1, tx: 0, ty: 0 }), before);
+const mid = dense.find((point) => point.seg === 0 && point.t === 0.5);
+assert.ok(mid);
+assert.ok(Math.abs(mid.x - 50) < 0.01);
+assert.ok(Math.abs(mid.y) < 0.01);
+
+const hit = hitCurve(50, 0, dense, { scale: 1, tx: 0, ty: 0 }, 8);
+assert.equal(hit?.seg, 0);
+assert.equal(hit?.t, 0.5);
+
+const boxed = curvesInRect(dense, { scale: 1, tx: 0, ty: 0 }, { x0: 40, y0: -4, x1: 80, y1: 4 });
+assert.ok(boxed.length >= 1);
+
+const editable = contoursToOutline(square, 1);
+const pinned = pinCurvePoints(editable, [
+  { contour: 0, seg: 0, t: 0.25, x: 25, y: 0 },
+  { contour: 0, seg: 0, t: 0.75, x: 75, y: 0 },
+]);
+assert.equal(pinned.length, 2);
+assert.equal(editable[0].anchors.length, 6);
+assert.ok(editable[0].anchors.some((anchor) => Math.abs(anchor.x - 25) < 0.05 && Math.abs(anchor.y) < 0.05));
+assert.ok(editable[0].anchors.some((anchor) => Math.abs(anchor.x - 75) < 0.05 && Math.abs(anchor.y) < 0.05));
+assert.equal(outlinePath(contoursToOutline(square, 1), { scale: 1, tx: 0, ty: 0 }), before);
+
+const svg = svgDocument(contoursToOutline(square, 1), "#c9c9c5");
+assert.match(svg, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);
+assert.match(svg, /<path d="M/);
 
 console.log("geometry ok");

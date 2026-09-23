@@ -223,12 +223,13 @@ export function boundsOfContours(contours: OrigContour[]): Bounds | null {
   return { minX, minY, maxX, maxY };
 }
 
-export function computeFit(width: number, height: number, bounds: Bounds | null): Fit {
+export function computeFit(width: number, height: number, bounds: Bounds | null, padX = 0): Fit {
   if (!bounds || width < 20 || height < 20) return { scale: 1, tx: 0, ty: 0 };
   const bw = Math.max(1, bounds.maxX - bounds.minX);
   const bh = Math.max(1, bounds.maxY - bounds.minY);
   const margin = Math.min(width, height) * 0.1 + 36;
-  const scale = Math.min((width - margin * 2) / bw, (height - margin * 2) / bh);
+  const marginX = Math.max(margin, padX);
+  const scale = Math.min((width - marginX * 2) / bw, (height - margin * 2) / bh);
   return {
     scale,
     tx: (width - bw * scale) / 2 - bounds.minX * scale,
@@ -305,6 +306,211 @@ export function hitTest(
     });
   });
   return hit;
+}
+
+export type CurvePoint = {
+  contour: number;
+  seg: number;
+  t: number;
+  x: number;
+  y: number;
+};
+
+/** Samples along the current curves. Density never rebuilds or moves the outlines. */
+export function pointsAlong(outlines: Outline[], density: number): CurvePoint[] {
+  const steps = Math.max(1, Math.round(density));
+  const points: CurvePoint[] = [];
+  outlines.forEach((outline, contour) => {
+    const count = outline.anchors.length;
+    for (let seg = 0; seg < count; seg++) {
+      const start = outline.anchors[seg];
+      const end = outline.anchors[(seg + 1) % count];
+      const cubic = outline.segs[seg];
+      if (!start || !end || !cubic) continue;
+      for (let step = 0; step < steps; step++) {
+        const t = step / steps;
+        const at =
+          t === 0
+            ? { x: start.x, y: start.y }
+            : cubicAt(start.x, start.y, cubic.c1x, cubic.c1y, cubic.c2x, cubic.c2y, end.x, end.y, t);
+        points.push({ contour, seg, t, x: at.x, y: at.y });
+      }
+    }
+  });
+  return points;
+}
+
+export function hitCurve(x: number, y: number, points: CurvePoint[], fit: Fit, radius = 16): CurvePoint | null {
+  const limit = radius * radius;
+  let best = limit;
+  let hit: CurvePoint | null = null;
+  for (const point of points) {
+    const [px, py] = project(point.x, point.y, fit);
+    const d = (px - x) ** 2 + (py - y) ** 2;
+    if (d <= best) {
+      best = d;
+      hit = point;
+    }
+  }
+  return hit;
+}
+
+export function curvesInRect(
+  points: CurvePoint[],
+  fit: Fit,
+  rect: { x0: number; y0: number; x1: number; y1: number },
+): CurvePoint[] {
+  const left = Math.min(rect.x0, rect.x1);
+  const right = Math.max(rect.x0, rect.x1);
+  const top = Math.min(rect.y0, rect.y1);
+  const bottom = Math.max(rect.y0, rect.y1);
+  return points.filter((point) => {
+    const [x, y] = project(point.x, point.y, fit);
+    return x >= left && x <= right && y >= top && y <= bottom;
+  });
+}
+
+/** Turns samples into real anchors so a drag can move them. The curve stays put until the drag. */
+export function pinCurvePoints(outlines: Outline[], picks: CurvePoint[]): CurvePoint[] {
+  const groups = new Map<number, CurvePoint[]>();
+  for (const pick of picks) {
+    const group = groups.get(pick.contour) ?? [];
+    group.push(pick);
+    groups.set(pick.contour, group);
+  }
+
+  const pinned: CurvePoint[] = [];
+  for (const [contour, group] of groups) {
+    const outline = outlines[contour];
+    if (!outline) continue;
+    const bySeg = new Map<number, number[]>();
+    for (const pick of group) {
+      const times = bySeg.get(pick.seg) ?? [];
+      times.push(pick.t);
+      bySeg.set(pick.seg, times);
+    }
+
+    const recorded: number[] = [];
+    const segIds = [...bySeg.keys()].sort((a, b) => b - a);
+    for (const seg of segIds) {
+      if (seg < 0 || seg >= outline.segs.length) continue;
+      const times = [...new Set(bySeg.get(seg) ?? [])].sort((a, b) => b - a);
+      let coveredEnd = 1;
+      for (const time of times) {
+        const local = coveredEnd <= 1e-6 ? 0 : time / coveredEnd;
+        const before = outline.anchors.length;
+        const anchor = splitSegment(outline, seg, local);
+        if (outline.anchors.length > before) {
+          for (let i = 0; i < recorded.length; i++) {
+            if (recorded[i] > seg) recorded[i] += 1;
+          }
+        }
+        recorded.push(anchor);
+        if (time > 1e-4 && time < 1 - 1e-4) coveredEnd = time;
+      }
+    }
+
+    const seen = new Set<number>();
+    for (const seg of recorded) {
+      if (seen.has(seg)) continue;
+      seen.add(seg);
+      const anchor = outline.anchors[seg];
+      if (!anchor) continue;
+      pinned.push({ contour, seg, t: 0, x: anchor.x, y: anchor.y });
+    }
+  }
+  return pinned;
+}
+
+export function splitSegment(outline: Outline, index: number, t: number): number {
+  const count = outline.anchors.length;
+  if (count < 2 || index < 0 || index >= outline.segs.length) return index;
+  if (t <= 1e-4) return index;
+  if (t >= 1 - 1e-4) return (index + 1) % count;
+
+  const start = outline.anchors[index];
+  const end = outline.anchors[(index + 1) % count];
+  const seg = outline.segs[index];
+  if (!start || !end || !seg) return index;
+
+  const live = splitCubic(
+    {
+      p0: { x: start.x, y: start.y },
+      c1: { x: seg.c1x, y: seg.c1y },
+      c2: { x: seg.c2x, y: seg.c2y },
+      p1: { x: end.x, y: end.y },
+    },
+    t,
+  );
+  const base = splitCubic(
+    {
+      p0: { x: start.bx, y: start.by },
+      c1: { x: seg.b1x, y: seg.b1y },
+      c2: { x: seg.b2x, y: seg.b2y },
+      p1: { x: end.bx, y: end.by },
+    },
+    t,
+  );
+
+  outline.segs.splice(index, 1, segFromCubics(live[0], base[0]), segFromCubics(live[1], base[1]));
+  const mid = anchorAt(live[0].p1);
+  mid.bx = base[0].p1.x;
+  mid.by = base[0].p1.y;
+  outline.anchors.splice(index + 1, 0, mid);
+  return index + 1;
+}
+
+export function boundsOfOutlines(outlines: Outline[]): Bounds | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const add = (x: number, y: number) => {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+  for (const outline of outlines) {
+    for (const anchor of outline.anchors) add(anchor.x, anchor.y);
+    for (const seg of outline.segs) {
+      add(seg.c1x, seg.c1y);
+      add(seg.c2x, seg.c2y);
+    }
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { minX, minY, maxX, maxY };
+}
+
+export function svgDocument(outlines: Outline[], fill: string): string {
+  const bounds = boundsOfOutlines(outlines);
+  if (!bounds) return "";
+  const span = Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY, 1);
+  const pad = span * 0.08;
+  const width = bounds.maxX - bounds.minX + pad * 2;
+  const height = bounds.maxY - bounds.minY + pad * 2;
+  const d = outlinePath(outlines, { scale: 1, tx: -(bounds.minX - pad), ty: -(bounds.minY - pad) });
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${num(width)} ${num(height)}" fill="${fill}"><path d="${d}"/></svg>`;
+}
+
+function cubicAt(
+  x0: number,
+  y0: number,
+  c1x: number,
+  c1y: number,
+  c2x: number,
+  c2y: number,
+  x1: number,
+  y1: number,
+  t: number,
+): Vec {
+  const u = 1 - t;
+  const uu = u * u;
+  const tt = t * t;
+  return {
+    x: uu * u * x0 + 3 * uu * t * c1x + 3 * u * tt * c2x + tt * t * x1,
+    y: uu * u * y0 + 3 * uu * t * c1y + 3 * u * tt * c2y + tt * t * y1,
+  };
 }
 
 export function pointCount(outlines: Outline[]): number {

@@ -3,24 +3,23 @@ import { DialRoot, useDialKit } from "dialkit";
 import "dialkit/styles.css";
 import type { Font } from "opentype.js";
 import {
-  anchorsInRect,
-  applyWarp,
   boundsOfContours,
   computeFit,
   contoursToOutline,
-  hitTest,
+  curvesInRect,
+  hitCurve,
   moveAnchor,
   outlinePath,
-  pointCount,
+  pinCurvePoints,
+  pointsAlong,
   project,
-  refineOutline,
-  samplesFrom,
+  svgDocument,
   unproject,
   type Bounds,
+  type CurvePoint,
   type Fit,
   type OrigContour,
   type Outline,
-  type PointRef,
   type Sample,
 } from "./outline/geometry";
 import { loadTypeface, textToContours } from "./outline/text";
@@ -35,7 +34,11 @@ const DIAL = {
     ],
     default: "sans",
   },
+  letterSpacing: [0, -0.2, 0.6, 0.01] as [number, number, number, number],
   vectorPoints: [3, 1, 8, 1] as [number, number, number, number],
+  grid: false,
+  gridSize: [40, 8, 160, 4] as [number, number, number, number],
+  copySvg: { type: "action" as const, label: "Copy SVG" },
   reset: { type: "action" as const, label: "Reset points" },
 };
 
@@ -47,36 +50,44 @@ const FACES = {
 type Face = keyof typeof FACES;
 
 type Gesture =
-  | { kind: "move"; points: PointRef[]; x: number; y: number }
+  | { kind: "move"; points: CurvePoint[]; x: number; y: number }
   | { kind: "marquee"; x0: number; y0: number; x1: number; y1: number };
 
-const pointKey = (point: PointRef) => `${point.contour}:${point.anchor}`;
+const pointKey = (point: Pick<CurvePoint, "contour" | "seg" | "t">) =>
+  `${point.contour}:${point.seg}:${point.t.toFixed(4)}`;
 
 export default function App() {
   const params = useDialKit("Type", DIAL, {
     onAction: (path) => {
       if (path === "reset") resetRef.current();
+      if (path === "copySvg") void copyRef.current();
     },
   });
 
   const [dark, setDark] = useState(false);
+  const [notice, setNotice] = useState("");
   const density = Math.max(1, Math.round(params.vectorPoints));
+  const spacing = Math.round(params.letterSpacing * 100) / 100;
   const text = params.text;
   const face: Face = params.typeface === "serif" ? "serif" : "sans";
+  const gridOn = params.grid;
+  const gridSize = Math.max(4, params.gridSize);
 
   const fontsRef = useRef<Partial<Record<Face, Font>>>({});
   const origRef = useRef<OrigContour[]>([]);
   const outlinesRef = useRef<Outline[]>([]);
+  const pointsRef = useRef<CurvePoint[]>([]);
   const samplesRef = useRef<Sample[]>([]);
   const boundsRef = useRef<Bounds | null>(null);
-  const radiusRef = useRef(320);
   const textRef = useRef<string | null>(null);
   const faceRef = useRef<Face | null>(null);
+  const spacingRef = useRef<number | null>(null);
   const densityRef = useRef(density);
   const fitRef = useRef<Fit>({ scale: 1, tx: 0, ty: 0 });
   const gestureRef = useRef<Gesture | null>(null);
-  const selectionRef = useRef<PointRef[]>([]);
+  const selectionRef = useRef<CurvePoint[]>([]);
   const resetRef = useRef<() => void>(() => {});
+  const copyRef = useRef<() => void>(() => {});
 
   const stageRef = useRef<HTMLElement>(null);
   const [fontsReady, setFontsReady] = useState(false);
@@ -84,14 +95,14 @@ export default function App() {
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [tick, setTick] = useState(0);
   const [pointsOn, setPointsOn] = useState(false);
-  const [hot, setHot] = useState<PointRef | null>(null);
+  const [hot, setHot] = useState<CurvePoint | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [selection, setSelection] = useState<PointRef[]>([]);
+  const [selection, setSelection] = useState<CurvePoint[]>([]);
   const [marquee, setMarquee] = useState<Gesture & { kind: "marquee" } | null>(null);
 
   const bump = () => setTick((value) => value + 1);
 
-  const replaceSelection = (points: PointRef[]) => {
+  const replaceSelection = (points: CurvePoint[]) => {
     selectionRef.current = points;
     setSelection(points);
   };
@@ -100,6 +111,12 @@ export default function App() {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
   }, [dark]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const id = window.setTimeout(() => setNotice(""), 1600);
+    return () => window.clearTimeout(id);
+  }, [notice]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -140,22 +157,24 @@ export default function App() {
 
     const textChanged = textRef.current !== text;
     const faceChanged = faceRef.current !== face;
+    const spacingChanged = spacingRef.current !== spacing;
     const densityChanged = densityRef.current !== density;
 
-    if (textChanged || faceChanged) {
+    if (textChanged || faceChanged || spacingChanged) {
       samplesRef.current = [];
       gestureRef.current = null;
       replaceSelection([]);
       setDragging(false);
       setHot(null);
       setMarquee(null);
-      radiusRef.current = font.unitsPerEm * 0.16;
-      const contours = textToContours(font, text);
+      const contours = textToContours(font, text, spacing);
       origRef.current = contours;
       boundsRef.current = boundsOfContours(contours);
-      outlinesRef.current = contoursToOutline(contours, density);
+      outlinesRef.current = contoursToOutline(contours, 1);
+      pointsRef.current = pointsAlong(outlinesRef.current, density);
       textRef.current = text;
       faceRef.current = face;
+      spacingRef.current = spacing;
       densityRef.current = density;
       bump();
       return;
@@ -164,46 +183,55 @@ export default function App() {
     if (densityChanged) {
       gestureRef.current = null;
       replaceSelection([]);
+      setHot(null);
       setMarquee(null);
-      const from = densityRef.current;
-      if (density > from && density % from === 0 && outlinesRef.current.length > 0) {
-        outlinesRef.current = outlinesRef.current.map((outline) => refineOutline(outline, density / from));
-        samplesRef.current = samplesFrom(outlinesRef.current);
-      } else {
-        outlinesRef.current = contoursToOutline(origRef.current, density).map((outline) =>
-          applyWarp(outline, samplesRef.current, radiusRef.current),
-        );
-        samplesRef.current = samplesFrom(outlinesRef.current);
-      }
+      pointsRef.current = pointsAlong(outlinesRef.current, density);
       densityRef.current = density;
       bump();
     }
-  }, [fontsReady, text, density, face]);
+  }, [fontsReady, text, density, face, spacing]);
 
   resetRef.current = () => {
-    const font = fontsRef.current[faceRef.current ?? "sans"];
-    if (!font) return;
     samplesRef.current = [];
     gestureRef.current = null;
     replaceSelection([]);
     setDragging(false);
     setHot(null);
     setMarquee(null);
-    outlinesRef.current = contoursToOutline(origRef.current, densityRef.current);
+    outlinesRef.current = contoursToOutline(origRef.current, 1);
+    pointsRef.current = pointsAlong(outlinesRef.current, densityRef.current);
     bump();
   };
 
+  copyRef.current = () => {
+    if (outlinesRef.current.length === 0) return;
+    const fill = getComputedStyle(document.documentElement).getPropertyValue("--glyph").trim() || "#c9c9c5";
+    const markup = svgDocument(outlinesRef.current, fill);
+    if (!markup) return;
+    const done = (label: string) => setNotice(label);
+    if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(markup).then(
+        () => done("Copied SVG"),
+        () => done("Couldn’t copy"),
+      );
+      return;
+    }
+    done("Couldn’t copy");
+  };
+
   const outlines = outlinesRef.current;
+  const curvePoints = pointsRef.current;
   void tick;
-  const fit = computeFit(size.w, size.h, boundsRef.current);
+  const sideClearance = size.w > 940 ? 328 : 0;
+  const fit = computeFit(size.w, size.h, boundsRef.current, sideClearance);
   fitRef.current = fit;
   const path = outlinePath(outlines, fit);
-  const count = pointCount(outlines);
+  const count = curvePoints.length;
   const trimmed = text.trim();
   const showWord = fontsReady && !error && trimmed.length > 0 && outlines.length > 0 && size.w > 0;
   const showPoints = pointsOn || dragging || selection.length > 0 || marquee !== null;
 
-  const preview = marquee ? anchorsInRect(outlines, fit, marquee) : [];
+  const preview = marquee ? curvesInRect(curvePoints, fit, marquee) : [];
   const marked = new Set((marquee ? preview : selection).map(pointKey));
   const hotKey = hot ? pointKey(hot) : "";
 
@@ -218,19 +246,20 @@ export default function App() {
   const onPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!showWord) return;
     const point = localPoint(event);
-    const hit = hitTest(point.x, point.y, outlinesRef.current, fitRef.current);
+    const hit = hitCurve(point.x, point.y, pointsRef.current, fitRef.current);
     setPointsOn(true);
     if (hit) {
-      const already = selectionRef.current.some(
-        (item) => item.contour === hit.contour && item.anchor === hit.anchor,
-      );
-      const moving = already ? selectionRef.current : [hit];
-      if (!already) replaceSelection(moving);
+      const already = selectionRef.current.some((item) => pointKey(item) === pointKey(hit));
+      const picks = already && selectionRef.current.length > 0 ? selectionRef.current : [hit];
+      const moving = pinCurvePoints(outlinesRef.current, picks);
+      pointsRef.current = pointsAlong(outlinesRef.current, densityRef.current);
+      replaceSelection(moving);
       const [fx, fy] = unproject(point.x, point.y, fitRef.current);
       gestureRef.current = { kind: "move", points: moving, x: fx, y: fy };
-      setHot(hit);
+      setHot(moving[0] ?? null);
       setDragging(true);
       setMarquee(null);
+      bump();
     } else {
       const next = { kind: "marquee" as const, x0: point.x, y0: point.y, x1: point.x, y1: point.y };
       gestureRef.current = next;
@@ -245,9 +274,9 @@ export default function App() {
     const point = localPoint(event);
     const gesture = gestureRef.current;
     if (!gesture) {
-      const hit = hitTest(point.x, point.y, outlinesRef.current, fitRef.current);
+      const hit = hitCurve(point.x, point.y, pointsRef.current, fitRef.current);
       setHot((current) => {
-        if (current?.contour === hit?.contour && current?.anchor === hit?.anchor) return current;
+        if (pointKeyOrEmpty(current) === pointKeyOrEmpty(hit)) return current;
         return hit;
       });
       return;
@@ -267,8 +296,11 @@ export default function App() {
     for (const item of gesture.points) {
       const outline = outlinesRef.current[item.contour];
       if (!outline) continue;
-      moveAnchor(outline, item.anchor, dx, dy, samplesRef.current);
+      moveAnchor(outline, item.seg, dx, dy, samplesRef.current);
+      item.x += dx;
+      item.y += dy;
     }
+    pointsRef.current = pointsAlong(outlinesRef.current, densityRef.current);
     bump();
   };
 
@@ -278,7 +310,7 @@ export default function App() {
     setDragging(false);
     if (gesture?.kind === "marquee") {
       const span = Math.hypot(gesture.x1 - gesture.x0, gesture.y1 - gesture.y0);
-      replaceSelection(span < 4 ? [] : anchorsInRect(outlinesRef.current, fitRef.current, gesture));
+      replaceSelection(span < 4 ? [] : curvesInRect(pointsRef.current, fitRef.current, gesture));
       setMarquee(null);
     }
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -310,7 +342,7 @@ export default function App() {
           }
         }}
       >
-        <div className="chip">{chip}</div>
+        <div className="chip">{notice || chip}</div>
 
         {error ? <p className="stage-message">{error}</p> : null}
         {!error && !fontsReady ? <p className="fallback-word">Anna He</p> : null}
@@ -330,24 +362,23 @@ export default function App() {
             onPointerUp={endDrag}
             onPointerCancel={endDrag}
           >
+            {gridOn ? <path d={gridPath(size.w, size.h, gridSize)} className="grid" /> : null}
             <path d={path} className="glyphs" />
             <g className={`points${showPoints ? " is-on" : ""}`}>
-              {outlines.map((outline, contour) =>
-                outline.anchors.map((anchor, index) => {
-                  const [x, y] = project(anchor.x, anchor.y, fit);
-                  const key = `${contour}:${index}`;
-                  const active = marked.has(key) || key === hotKey;
-                  return (
-                    <circle
-                      key={`${key}-${anchor.bx.toFixed(1)}-${anchor.by.toFixed(1)}`}
-                      cx={x}
-                      cy={y}
-                      r={active ? 5.4 : 4.15}
-                      className={active ? "point is-hot" : "point"}
-                    />
-                  );
-                }),
-              )}
+              {curvePoints.map((anchor) => {
+                const [x, y] = project(anchor.x, anchor.y, fit);
+                const key = pointKey(anchor);
+                const active = marked.has(key) || key === hotKey;
+                return (
+                  <circle
+                    key={key}
+                    cx={x}
+                    cy={y}
+                    r={active ? 5.4 : 4.15}
+                    className={active ? "point is-hot" : "point"}
+                  />
+                );
+              })}
             </g>
             {marquee ? (
               <rect
@@ -366,7 +397,7 @@ export default function App() {
         <header className="mast">
           <div>
             <h1>Text Outline</h1>
-            <p>Hover for points. Drag a box to move several.</p>
+            <p>Hover to drag points.</p>
           </div>
           <button
             type="button"
@@ -384,6 +415,24 @@ export default function App() {
       </aside>
     </div>
   );
+}
+
+function pointKeyOrEmpty(point: CurvePoint | null) {
+  return point ? pointKey(point) : "";
+}
+
+function gridPath(width: number, height: number, gap: number) {
+  const size = Math.max(4, gap);
+  const originX = width / 2 - Math.ceil(width / 2 / size) * size;
+  const originY = height / 2 - Math.ceil(height / 2 / size) * size;
+  let d = "";
+  for (let x = originX; x <= width + 0.5; x += size) d += `M${trim(x)} 0V${trim(height)}`;
+  for (let y = originY; y <= height + 0.5; y += size) d += `M0 ${trim(y)}H${trim(width)}`;
+  return d;
+}
+
+function trim(value: number) {
+  return (Math.round(value * 100) / 100).toString();
 }
 
 function SunIcon() {
