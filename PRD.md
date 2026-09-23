@@ -19,7 +19,7 @@ The word starts as **Anna He**.
 5. Reset points. The current word returns to the typeface. The point count stays where the dial left it.
 6. Vector points. A dial from 1 to 8. It only changes how many points appear on hover. It does not move or reshape the letters.
 7. Grid. Off by default. Turn it on and a stepped cell-size dial appears. Turn it off and that dial hides. The grid covers the whole screen, behind the panel, and zooms with the canvas.
-8. Zoom. Scroll or pinch the canvas.
+8. Zoom. Scroll or pinch the canvas. **Fit to screen** clears the zoom and centres the word in the current viewport.
 9. Export SVG. Downloads the current outlines, cropped to the letterforms.
 10. Dark mode. A sun/moon icon in the top-right corner of the panel. Light is the default grey system. Dark inverts the field, panel, and letterforms. Points stay blue.
 

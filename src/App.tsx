@@ -452,6 +452,17 @@ export default function App() {
         }}
       >
         <div className="chip">{notice || chip}</div>
+        <button
+          type="button"
+          className="fit"
+          onClick={() => {
+            const rect = stageRef.current?.getBoundingClientRect();
+            if (rect) setSize({ w: rect.width, h: rect.height });
+            setView(IDENTITY_VIEW);
+          }}
+        >
+          Fit to screen
+        </button>
 
         {error ? <p className="stage-message">{error}</p> : null}
         {!error && !fontsReady ? <p className="fallback-word">Anna He</p> : null}
