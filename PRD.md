@@ -52,7 +52,7 @@ The panel is DialKit, inline.
 - Field: `#F3F3F1`
 - Panel: white, 1px `#E6E6E3` border, 16px radius
 - Letterforms: pale grey, Inter Semibold or LT Superior Semibold
-- Panel title: Inter Medium, 16px, “Text Outline”. Body: “Hover to drag points.”
+- Panel title: Inter Medium, 16px, “Text Outline”.
 - Anchors: `#0D99FF`
 - Dark field: `#141414`, letterforms `#4A4A4A`
 

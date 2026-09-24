@@ -124,16 +124,6 @@ input {
   line-height: 1.2;
 }
 
-.mast p {
-  margin: 6px 0 0;
-  max-width: 22ch;
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 450;
-  line-height: 1.4;
-  letter-spacing: -0.011em;
-}
-
 .theme-toggle,
 .panel-toggle {
   flex: none;

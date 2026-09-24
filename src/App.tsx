@@ -638,10 +638,7 @@ export default function App() {
       {panelOpen ? (
         <aside className="panel">
           <header className="mast">
-            <div>
-              <h1>Text Outline</h1>
-              <p>Hover to drag points.</p>
-            </div>
+            <h1>Text Outline</h1>
             <div className="mast-actions">
               <button
                 type="button"
