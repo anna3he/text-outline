@@ -17,6 +17,7 @@ import {
   pointCount,
   pointsAlong,
   refineOutline,
+  snapScreen,
   svgDocument,
   upsertSample,
   zoomView,
@@ -132,5 +133,12 @@ const zoomedFit = composeView(baseFit, zoomed, 400, 200);
 const [fx, fy] = [(80 - baseFit.tx) / baseFit.scale, (40 - baseFit.ty) / baseFit.scale];
 assert.ok(Math.abs(fx * zoomedFit.scale + zoomedFit.tx - 80) < 0.01);
 assert.ok(Math.abs(fy * zoomedFit.scale + zoomedFit.ty - 40) < 0.01);
+
+const snapped = snapScreen(733, 468, 1440, 900, 40, 1, 0, 0);
+assert.equal(snapped.x, 720);
+assert.equal(snapped.y, 450);
+const zoomedSnap = snapScreen(800, 500, 1440, 900, 40, 2, 10, -6);
+assert.equal(zoomedSnap.x, 810);
+assert.equal(zoomedSnap.y, 524);
 
 console.log("geometry ok");

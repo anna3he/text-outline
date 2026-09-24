@@ -13,6 +13,7 @@ import {
   outlinePath,
   pinCurvePoints,
   pointsAlong,
+  snapScreen,
   IDENTITY_VIEW,
   project,
   svgDocument,
@@ -28,7 +29,7 @@ import {
 } from "./outline/geometry";
 import { loadTypeface, textToContours } from "./outline/text";
 
-function buildDial(showGridSize: boolean, gridSize: number) {
+function buildDial(showGridSize: boolean, gridSize: number, snapToGrid: boolean) {
   return {
     text: { type: "text" as const, default: "Anna He", placeholder: "Type a word" },
     typeface: {
@@ -43,7 +44,10 @@ function buildDial(showGridSize: boolean, gridSize: number) {
     vectorPoints: [1, 1, 8, 1] as [number, number, number, number],
     grid: false,
     ...(showGridSize
-      ? { gridSize: [gridSize, 8, 160, 4] as [number, number, number, number] }
+      ? {
+          gridSize: [gridSize, 8, 160, 4] as [number, number, number, number],
+          snapToGrid,
+        }
       : {}),
     exportSvg: { type: "action" as const, label: "Export SVG" },
     reset: { type: "action" as const, label: "Reset points" },
@@ -67,8 +71,13 @@ const pointKey = (point: Pick<CurvePoint, "contour" | "seg" | "t">) =>
 
 export default function App() {
   const gridSizeHeld = useRef(40);
+  const snapHeld = useRef(false);
   const [gridOpen, setGridOpen] = useState(false);
-  const dial = useMemo(() => buildDial(gridOpen, gridSizeHeld.current), [gridOpen]);
+  const [barOpen, setBarOpen] = useState(true);
+  const dial = useMemo(
+    () => buildDial(gridOpen, gridSizeHeld.current, snapHeld.current),
+    [gridOpen],
+  );
   const params = useDialKit("Type", dial, {
     onAction: (path) => {
       if (path === "reset") resetRef.current();
@@ -86,7 +95,10 @@ export default function App() {
   const gridOn = params.grid;
   const gridSizeValue = "gridSize" in params ? params.gridSize : undefined;
   if (typeof gridSizeValue === "number") gridSizeHeld.current = gridSizeValue;
+  const snapValue = "snapToGrid" in params ? params.snapToGrid : undefined;
+  if (typeof snapValue === "boolean") snapHeld.current = snapValue;
   const gridSize = Math.max(4, gridSizeHeld.current);
+  const snapOn = gridOn && snapHeld.current;
 
   const fontsRef = useRef<Partial<Record<Face, Font>>>({});
   const origRef = useRef<OrigContour[]>([]);
@@ -387,11 +399,33 @@ export default function App() {
       return;
     }
     const [fx, fy] = unproject(point.x, point.y, fitRef.current);
-    const dx = fx - gesture.x;
-    const dy = fy - gesture.y;
+    let targetX = fx;
+    let targetY = fy;
+    if (snapOn) {
+      const primary = gesture.points[0];
+      if (primary) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const [sx, sy] = project(primary.x + (fx - gesture.x), primary.y + (fy - gesture.y), fitRef.current);
+        const snapped = snapScreen(
+          sx,
+          sy,
+          rect.width,
+          rect.height,
+          gridSize,
+          viewRef.current.zoom,
+          viewRef.current.panX,
+          viewRef.current.panY,
+        );
+        const [nfx, nfy] = unproject(snapped.x, snapped.y, fitRef.current);
+        targetX = gesture.x + (nfx - primary.x);
+        targetY = gesture.y + (nfy - primary.y);
+      }
+    }
+    const dx = targetX - gesture.x;
+    const dy = targetY - gesture.y;
     if (dx === 0 && dy === 0) return;
-    gesture.x = fx;
-    gesture.y = fy;
+    gesture.x = targetX;
+    gesture.y = targetY;
     for (const item of gesture.points) {
       const outline = outlinesRef.current[item.contour];
       if (!outline) continue;
@@ -452,18 +486,6 @@ export default function App() {
         }}
       >
         <div className="chip">{notice || chip}</div>
-        <button
-          type="button"
-          className="fit"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => {
-            setSize({ w: window.innerWidth, h: window.innerHeight });
-            setView({ zoom: 1, panX: 0, panY: 0 });
-          }}
-        >
-          Fit to screen
-        </button>
-
         {error ? <p className="stage-message">{error}</p> : null}
         {!error && !fontsReady ? <p className="fallback-word">Anna He</p> : null}
         {!error && fontsReady && !trimmed ? <p className="stage-message">Type a word</p> : null}
@@ -515,25 +537,48 @@ export default function App() {
         ) : null}
       </main>
 
-      <aside className="panel">
+      <aside className={`panel${barOpen ? "" : " is-closed"}`}>
         <header className="mast">
           <div>
             <h1>Text Outline</h1>
             <p>Hover to drag points.</p>
           </div>
-          <button
-            type="button"
-            className="theme-toggle"
-            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-            aria-pressed={dark}
-            onClick={() => setDark((value) => !value)}
-          >
-            {dark ? <MoonIcon /> : <SunIcon />}
-          </button>
+          <div className="mast-actions">
+            <button
+              type="button"
+              className="fit"
+              onClick={() => {
+                setSize({ w: window.innerWidth, h: window.innerHeight });
+                setView({ zoom: 1, panX: 0, panY: 0 });
+              }}
+            >
+              Fit to screen
+            </button>
+            <button
+              type="button"
+              className="theme-toggle"
+              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+              aria-pressed={dark}
+              onClick={() => setDark((value) => !value)}
+            >
+              {dark ? <MoonIcon /> : <SunIcon />}
+            </button>
+            <button
+              type="button"
+              className="bar-toggle"
+              aria-expanded={barOpen}
+              aria-label={barOpen ? "Close controls" : "Open controls"}
+              onClick={() => setBarOpen((open) => !open)}
+            >
+              <ChevronIcon open={barOpen} />
+            </button>
+          </div>
         </header>
-        <div className="dial-slot">
-          <DialRoot mode="inline" theme={dark ? "dark" : "light"} productionEnabled />
-        </div>
+        {barOpen ? (
+          <div className="dial-slot">
+            <DialRoot mode="inline" theme={dark ? "dark" : "light"} productionEnabled />
+          </div>
+        ) : null}
       </aside>
     </div>
   );
@@ -555,6 +600,21 @@ function gridPath(width: number, height: number, gap: number, zoom: number, panX
 
 function trim(value: number) {
   return (Math.round(value * 100) / 100).toString();
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={open ? "chevron is-open" : "chevron"}>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.5 14.5 12 9.5l5.5 5"
+      />
+    </svg>
+  );
 }
 
 function SunIcon() {

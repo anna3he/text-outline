@@ -6,7 +6,7 @@ Reshaping a word should feel like editing vectors in Figma: points on the outlin
 
 ## Product
 
-One screen. A word centred on the viewport. A compact control panel sits in the bottom-right corner, only as tall as its contents.
+One screen. A word centred on the viewport. Controls sit in a horizontal bar along the bottom. The bar can close down to a single strip so it does not cover the letters.
 
 The word starts as **Anna He**.
 
@@ -18,10 +18,11 @@ The word starts as **Anna He**.
 4. Change the text, the typeface, or the letter spacing. The outlines rebuild, the word stays centred, and every drag is discarded.
 5. Reset points. The current word returns to the typeface. The point count stays where the dial left it.
 6. Vector points. A dial from 1 to 8. 1 is sparse. 8 is the old minimum: every anchor on the typeface, and no denser. The dial only changes how many points appear on hover. It does not move or reshape the letters.
-7. Grid. Off by default. Turn it on and a stepped cell-size dial appears. Turn it off and that dial hides. The grid covers the whole screen, behind the panel, and zooms with the canvas.
-8. Zoom. Scroll or pinch the canvas. **Fit to screen** clears the zoom and places the word in the middle of the current viewport.
-9. Export SVG. Downloads the current outlines, cropped to the letterforms.
-10. Dark mode. A sun/moon icon in the top-right corner of the panel. Light is the default grey system. Dark inverts the field, panel, and letterforms. Points stay blue.
+7. Grid. Off by default. Turn it on and a stepped cell-size dial appears, plus a snap toggle. Turn it off and both hide. The grid covers the whole screen, behind the bar, and zooms with the canvas. With snap on, a dragged selection jumps so the point under the pointer lands on a grid intersection. The rest of the selection keeps its shape.
+8. Zoom. Scroll or pinch the canvas. **Fit to screen**, in the bar, clears the zoom and places the word in the middle of the current viewport.
+9. The bar. Open shows the controls in a wrapping row. Close leaves the title, Fit, the theme icon, and the chevron.
+10. Export SVG. Downloads the current outlines, cropped to the letterforms.
+11. Dark mode. A sun/moon icon on the right of the bar. Light is the default grey system. Dark inverts the field, panel, and letterforms. Points stay blue.
 
 The typeface starts as Serif · LT Superior. Sans · Inter is the second menu option.
 
@@ -39,9 +40,12 @@ The panel is DialKit, inline.
 | Vector points | 1 is the fewest points. 8 shows every typeface anchor, which used to be the minimum. Does not move the letters. |
 | Grid | Shows or hides a grid across the whole screen. |
 | Grid size | Visible only while the grid is on. Cell size in pixels, stepped. |
+| Snap | Visible only while the grid is on. Off by default. Drags land on grid intersections. |
 | Export SVG | Downloads an SVG fitted to the current outlines. |
 | Reset points | Restores the current word’s outlines. |
-| Theme icon | Top-right of the panel. Sun for light, moon for dark. |
+| Fit to screen | In the bar. Centres the word in the current window. |
+| Theme icon | Right side of the bar. Sun for light, moon for dark. |
+| Chevron | Opens and closes the control row. |
 
 ## Visual system
 

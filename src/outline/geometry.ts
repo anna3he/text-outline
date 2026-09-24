@@ -298,6 +298,26 @@ export function zoomView(
   };
 }
 
+/** Screen point nearest a grid line. Lines pass through the viewport centre plus pan. */
+export function snapScreen(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  gap: number,
+  zoom: number,
+  panX: number,
+  panY: number,
+): { x: number; y: number } {
+  const cell = Math.max(4, gap * zoom);
+  const ox = width / 2 + panX;
+  const oy = height / 2 + panY;
+  return {
+    x: ox + Math.round((x - ox) / cell) * cell,
+    y: oy + Math.round((y - oy) / cell) * cell,
+  };
+}
+
 export type PointRef = { contour: number; anchor: number };
 
 export function anchorsInRect(
