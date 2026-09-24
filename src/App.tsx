@@ -121,6 +121,7 @@ export default function App() {
   const exportRef = useRef<() => void>(() => {});
 
   const stageRef = useRef<HTMLElement>(null);
+  const hitRef = useRef<SVGPathElement>(null);
   const [fontsReady, setFontsReady] = useState(false);
   const [error, setError] = useState("");
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -315,7 +316,7 @@ export default function App() {
   const count = curvePoints.length;
   const trimmed = text.trim();
   const showWord = fontsReady && !error && trimmed.length > 0 && outlines.length > 0 && size.w > 0;
-  const showPoints = pointsOn || dragging || selection.length > 0 || marquee !== null;
+  const showPoints = pointsOn || dragging || marquee !== null;
 
   const preview = marquee ? curvesInRect(curvePoints, fit, marquee) : [];
   const marked = new Set((marquee ? preview : selection).map(pointKey));
@@ -334,6 +335,22 @@ export default function App() {
       cx: (a.x + b.x) / 2,
       cy: (a.y + b.y) / 2,
     };
+  };
+
+  const nearText = (x: number, y: number) => {
+    const node = hitRef.current;
+    if (!node || !node.getAttribute("d")) return false;
+    const point = new DOMPoint(x, y);
+    return node.isPointInFill(point) || node.isPointInStroke(point);
+  };
+
+  const revealPoints = (x: number, y: number) => {
+    if (gestureRef.current || nearText(x, y)) {
+      setPointsOn(true);
+      return;
+    }
+    setPointsOn(false);
+    setHot(null);
   };
 
   const localPoint = (event: React.PointerEvent<SVGSVGElement>) => {
@@ -530,8 +547,9 @@ export default function App() {
       <main
         className={`stage${showPoints ? " is-armed" : ""}${dragging ? " is-dragging" : ""}${marquee ? " is-selecting" : ""}`}
         ref={stageRef}
-        onPointerOver={() => {
-          setPointsOn((on) => (on ? on : true));
+        onPointerMove={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          revealPoints(event.clientX - rect.left, event.clientY - rect.top);
         }}
         onPointerLeave={() => {
           if (gestureRef.current) return;
@@ -587,6 +605,7 @@ export default function App() {
               <path d={gridPath(size.w, size.h, gridSize, view.zoom, view.panX, view.panY)} className="grid" />
             ) : null}
             <path d={path} className="glyphs" />
+            <path ref={hitRef} d={path} className="glyph-hit" />
             <g className={`points${showPoints ? " is-on" : ""}`}>
               {curvePoints.map((anchor) => {
                 const [x, y] = project(anchor.x, anchor.y, fit);

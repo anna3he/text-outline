@@ -286,9 +286,16 @@ input {
   fill: var(--glyph);
 }
 
+.glyph-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 36;
+  pointer-events: none;
+}
+
 .points {
   opacity: 0;
-  transition: opacity 160ms ease;
+  transition: opacity 300ms ease;
 }
 
 .points.is-on {
