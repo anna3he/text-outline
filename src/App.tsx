@@ -188,10 +188,10 @@ export default function App() {
       if (target instanceof HTMLElement && (target.closest("input, textarea, select") || target.isContentEditable)) return;
       const step = event.shiftKey ? 80 : 24;
       const move: Record<string, [number, number]> = {
-        ArrowLeft: [step, 0],
-        ArrowRight: [-step, 0],
-        ArrowUp: [0, step],
-        ArrowDown: [0, -step],
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+        ArrowUp: [0, -step],
+        ArrowDown: [0, step],
       };
       const delta = move[event.key];
       if (!delta) return;
