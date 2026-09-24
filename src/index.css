@@ -8,6 +8,14 @@
 
 @font-face {
   font-family: "Inter Local";
+  src: url("/fonts/Inter-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter Local";
   src: url("/fonts/Inter-SemiBold.ttf") format("truetype");
   font-weight: 600;
   font-style: normal;
@@ -79,28 +87,23 @@ input {
 .panel {
   position: fixed;
   z-index: 4;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  width: auto;
+  right: 14px;
+  bottom: 14px;
+  width: min(340px, calc(100vw - 28px));
   margin: 0;
-  padding: 10px 14px 12px;
+  padding: 18px 16px 14px;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: var(--shadow);
-  max-height: min(42dvh, 280px);
+  height: fit-content;
+  max-height: min(72dvh, 560px);
   overflow: auto;
-}
-
-.panel.is-closed {
-  padding-bottom: 10px;
-  overflow: hidden;
 }
 
 .mast {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
@@ -115,32 +118,30 @@ input {
 .mast h1 {
   margin: 0;
   font-family: "Inter Local", "Inter", ui-sans-serif, system-ui, sans-serif;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.15;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .mast p {
-  margin: 2px 0 0;
+  margin: 6px 0 0;
+  max-width: 22ch;
   color: var(--muted);
   font-size: 13px;
   font-weight: 450;
-  line-height: 1.3;
+  line-height: 1.4;
   letter-spacing: -0.011em;
 }
 
-.panel.is-closed .mast p {
-  display: none;
-}
-
 .theme-toggle,
-.bar-toggle {
+.panel-toggle {
   flex: none;
   width: 32px;
   height: 32px;
   display: grid;
   place-items: center;
+  margin-top: -2px;
   padding: 0;
   color: var(--ink);
   background: transparent;
@@ -149,15 +150,28 @@ input {
   cursor: pointer;
 }
 
+.panel-show {
+  position: fixed;
+  z-index: 4;
+  right: 14px;
+  bottom: 14px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+
 .chevron {
   width: 16px;
   height: 16px;
   display: block;
-  transition: transform 160ms ease;
-}
-
-.chevron.is-open {
-  transform: rotate(180deg);
 }
 
 .theme-toggle svg {
@@ -167,13 +181,14 @@ input {
 }
 
 .theme-toggle:hover,
-.bar-toggle:hover,
+.panel-toggle:hover,
+.panel-show:hover,
 .fit:hover {
   background: var(--bg);
 }
 
 .dial-slot {
-  margin-top: 10px;
+  margin-top: 16px;
 }
 
 .dial-slot .dialkit-root {
@@ -201,47 +216,23 @@ input {
   display: none;
 }
 
-.dial-slot .dialkit-folder-inner {
-  flex-direction: row !important;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 8px !important;
-}
-
-.dial-slot .dialkit-folder-inner > * {
-  flex: 1 1 200px;
-  min-width: 168px;
-  max-width: 280px;
-}
-
-.dial-slot .dialkit-toggle,
-.dial-slot .dialkit-action-button {
-  width: auto;
-  min-width: 148px;
-  max-width: none;
-  flex: 0 1 auto;
-}
-
-.dial-slot .dialkit-actions-stack,
-.dial-slot .dialkit-actions-group {
-  flex-direction: row;
-  flex-wrap: wrap;
-  width: auto;
-  max-width: none;
-  gap: 8px;
-}
-
 .stage {
   position: fixed;
   inset: 0;
 }
 
 .fit {
+  position: fixed;
+  z-index: 5;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
   padding: 7px 12px;
   color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 999px;
+  box-shadow: 0 1px 2px rgba(20, 20, 20, 0.03);
   font-size: 12.5px;
   font-weight: 450;
   letter-spacing: -0.011em;
@@ -359,18 +350,22 @@ input {
 
 @media (max-width: 800px) {
   .panel {
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    max-height: min(52dvh, 360px);
+    right: 10px;
+    bottom: 10px;
+    width: min(340px, calc(100vw - 20px));
+    max-height: min(58dvh, 460px);
   }
 
-  .mast {
-    align-items: flex-start;
+  .panel-show {
+    right: 10px;
+    bottom: 10px;
   }
 
-  .dial-slot .dialkit-folder-inner > * {
-    flex-basis: 100%;
-    max-width: none;
+  .fit {
+    top: 16px;
+    right: 16px;
+    bottom: auto;
+    left: auto;
+    transform: none;
   }
 }

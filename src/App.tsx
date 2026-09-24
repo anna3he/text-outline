@@ -73,7 +73,7 @@ export default function App() {
   const gridSizeHeld = useRef(40);
   const snapHeld = useRef(false);
   const [gridOpen, setGridOpen] = useState(false);
-  const [barOpen, setBarOpen] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(true);
   const dial = useMemo(
     () => buildDial(gridOpen, gridSizeHeld.current, snapHeld.current),
     [gridOpen],
@@ -486,6 +486,17 @@ export default function App() {
         }}
       >
         <div className="chip">{notice || chip}</div>
+        <button
+          type="button"
+          className="fit"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            setSize({ w: window.innerWidth, h: window.innerHeight });
+            setView({ zoom: 1, panX: 0, panY: 0 });
+          }}
+        >
+          Fit to screen
+        </button>
         {error ? <p className="stage-message">{error}</p> : null}
         {!error && !fontsReady ? <p className="fallback-word">Anna He</p> : null}
         {!error && fontsReady && !trimmed ? <p className="stage-message">Type a word</p> : null}
@@ -537,49 +548,43 @@ export default function App() {
         ) : null}
       </main>
 
-      <aside className={`panel${barOpen ? "" : " is-closed"}`}>
-        <header className="mast">
-          <div>
-            <h1>Text Outline</h1>
-            <p>Hover to drag points.</p>
-          </div>
-          <div className="mast-actions">
-            <button
-              type="button"
-              className="fit"
-              onClick={() => {
-                setSize({ w: window.innerWidth, h: window.innerHeight });
-                setView({ zoom: 1, panX: 0, panY: 0 });
-              }}
-            >
-              Fit to screen
-            </button>
-            <button
-              type="button"
-              className="theme-toggle"
-              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-              aria-pressed={dark}
-              onClick={() => setDark((value) => !value)}
-            >
-              {dark ? <MoonIcon /> : <SunIcon />}
-            </button>
-            <button
-              type="button"
-              className="bar-toggle"
-              aria-expanded={barOpen}
-              aria-label={barOpen ? "Close controls" : "Open controls"}
-              onClick={() => setBarOpen((open) => !open)}
-            >
-              <ChevronIcon open={barOpen} />
-            </button>
-          </div>
-        </header>
-        {barOpen ? (
+      {panelOpen ? (
+        <aside className="panel">
+          <header className="mast">
+            <div>
+              <h1>Text Outline</h1>
+              <p>Hover to drag points.</p>
+            </div>
+            <div className="mast-actions">
+              <button
+                type="button"
+                className="theme-toggle"
+                aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+                aria-pressed={dark}
+                onClick={() => setDark((value) => !value)}
+              >
+                {dark ? <MoonIcon /> : <SunIcon />}
+              </button>
+              <button
+                type="button"
+                className="panel-toggle"
+                aria-expanded={true}
+                aria-label="Hide panel"
+                onClick={() => setPanelOpen(false)}
+              >
+                <ChevronIcon down />
+              </button>
+            </div>
+          </header>
           <div className="dial-slot">
             <DialRoot mode="inline" theme={dark ? "dark" : "light"} productionEnabled />
           </div>
-        ) : null}
-      </aside>
+        </aside>
+      ) : (
+        <button type="button" className="panel-show" aria-expanded={false} aria-label="Show panel" onClick={() => setPanelOpen(true)}>
+          <ChevronIcon />
+        </button>
+      )}
     </div>
   );
 }
@@ -602,16 +607,16 @@ function trim(value: number) {
   return (Math.round(value * 100) / 100).toString();
 }
 
-function ChevronIcon({ open }: { open: boolean }) {
+function ChevronIcon({ down = false }: { down?: boolean }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className={open ? "chevron is-open" : "chevron"}>
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="chevron">
       <path
         fill="none"
         stroke="currentColor"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="M6.5 14.5 12 9.5l5.5 5"
+        d={down ? "M6.5 9.5 12 14.5l5.5-5" : "M6.5 14.5 12 9.5l5.5 5"}
       />
     </svg>
   );
