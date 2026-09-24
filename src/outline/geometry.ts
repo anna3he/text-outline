@@ -298,10 +298,17 @@ export function zoomView(
   };
 }
 
-/** Screen point nearest a grid line. Lines pass through the viewport centre plus pan. */
-export function snapScreen(
-  x: number,
-  y: number,
+function gridCell(gap: number, zoom: number) {
+  return Math.max(4, gap * zoom);
+}
+
+function nearestGridLine(value: number, origin: number, cell: number) {
+  return origin + Math.round((value - origin) / cell) * cell;
+}
+
+/** Screen delta that lands the nearer edge of a box on a grid line, on each axis. */
+export function snapBoxToGrid(
+  box: { minX: number; minY: number; maxX: number; maxY: number },
   width: number,
   height: number,
   gap: number,
@@ -309,13 +316,15 @@ export function snapScreen(
   panX: number,
   panY: number,
 ): { x: number; y: number } {
-  const cell = Math.max(4, gap * zoom);
+  const cell = gridCell(gap, zoom);
   const ox = width / 2 + panX;
   const oy = height / 2 + panY;
-  return {
-    x: ox + Math.round((x - ox) / cell) * cell,
-    y: oy + Math.round((y - oy) / cell) * cell,
+  const axis = (lo: number, hi: number, origin: number) => {
+    const dLo = nearestGridLine(lo, origin, cell) - lo;
+    const dHi = nearestGridLine(hi, origin, cell) - hi;
+    return Math.abs(dLo) <= Math.abs(dHi) ? dLo : dHi;
   };
+  return { x: axis(box.minX, box.maxX, ox), y: axis(box.minY, box.maxY, oy) };
 }
 
 export type PointRef = { contour: number; anchor: number };

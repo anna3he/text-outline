@@ -13,7 +13,7 @@ import {
   outlinePath,
   pinCurvePoints,
   pointsAlong,
-  snapScreen,
+  snapBoxToGrid,
   IDENTITY_VIEW,
   project,
   svgDocument,
@@ -64,7 +64,8 @@ type Face = keyof typeof FACES;
 type Gesture =
   | { kind: "move"; points: CurvePoint[]; x: number; y: number }
   | { kind: "marquee"; x0: number; y0: number; x1: number; y1: number }
-  | { kind: "pinch" };
+  | { kind: "pinch" }
+  | { kind: "pan"; x: number; y: number; panX: number; panY: number };
 
 const pointKey = (point: Pick<CurvePoint, "contour" | "seg" | "t">) =>
   `${point.contour}:${point.seg}:${point.t.toFixed(4)}`;
@@ -166,18 +167,43 @@ export default function App() {
       if (!boundsRef.current) return;
       event.preventDefault();
       const rect = stage.getBoundingClientRect();
-      const delta =
-        event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * rect.height : event.deltaY;
-      const factor = Math.exp(-delta * 0.0015);
+      const pixels = (value: number) =>
+        event.deltaMode === 1 ? value * 16 : event.deltaMode === 2 ? value * rect.height : value;
+      const dx = pixels(event.deltaX);
+      const dy = pixels(event.deltaY);
+      const pinch = event.ctrlKey || event.metaKey;
+      const trackpad = event.deltaMode === 0 && (event.deltaX !== 0 || !Number.isInteger(event.deltaY));
+      if (!pinch && trackpad) {
+        setView((current) => ({ ...current, panX: current.panX - dx, panY: current.panY - dy }));
+        return;
+      }
+      const factor = Math.exp(-dy * 0.0015);
       const base = computeFit(rect.width, rect.height, boundsRef.current);
       setView((current) =>
         zoomView(current, base, rect.width, rect.height, event.clientX - rect.left, event.clientY - rect.top, current.zoom * factor),
       );
     };
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.closest("input, textarea, select") || target.isContentEditable)) return;
+      const step = event.shiftKey ? 80 : 24;
+      const move: Record<string, [number, number]> = {
+        ArrowLeft: [step, 0],
+        ArrowRight: [-step, 0],
+        ArrowUp: [0, step],
+        ArrowDown: [0, -step],
+      };
+      const delta = move[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      setView((current) => ({ ...current, panX: current.panX + delta[0], panY: current.panY + delta[1] }));
+    };
     stage.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("keydown", onKey);
     return () => {
       observer.disconnect();
       stage.removeEventListener("wheel", onWheel);
+      window.removeEventListener("keydown", onKey);
     };
   }, []);
 
@@ -321,6 +347,20 @@ export default function App() {
   const onPointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
     if (!showWord) return;
     const point = localPoint(event);
+    if (event.button === 1) {
+      event.preventDefault();
+      gestureRef.current = {
+        kind: "pan",
+        x: point.x,
+        y: point.y,
+        panX: viewRef.current.panX,
+        panY: viewRef.current.panY,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      setDragging(true);
+      setMarquee(null);
+      return;
+    }
     pointersRef.current.set(event.pointerId, point);
     event.currentTarget.setPointerCapture(event.pointerId);
     if (pointersRef.current.size >= 2) {
@@ -357,6 +397,14 @@ export default function App() {
     const point = localPoint(event);
     if (pointersRef.current.has(event.pointerId)) pointersRef.current.set(event.pointerId, point);
     const gesture = gestureRef.current;
+    if (gesture?.kind === "pan") {
+      setView({
+        zoom: viewRef.current.zoom,
+        panX: gesture.panX + (point.x - gesture.x),
+        panY: gesture.panY + (point.y - gesture.y),
+      });
+      return;
+    }
     if (gesture?.kind === "pinch") {
       const pinch = pinchRef.current;
       const pair = [...pointersRef.current.values()];
@@ -401,25 +449,33 @@ export default function App() {
     const [fx, fy] = unproject(point.x, point.y, fitRef.current);
     let targetX = fx;
     let targetY = fy;
-    if (snapOn) {
-      const primary = gesture.points[0];
-      if (primary) {
-        const rect = event.currentTarget.getBoundingClientRect();
-        const [sx, sy] = project(primary.x + (fx - gesture.x), primary.y + (fy - gesture.y), fitRef.current);
-        const snapped = snapScreen(
-          sx,
-          sy,
-          rect.width,
-          rect.height,
-          gridSize,
-          viewRef.current.zoom,
-          viewRef.current.panX,
-          viewRef.current.panY,
-        );
-        const [nfx, nfy] = unproject(snapped.x, snapped.y, fitRef.current);
-        targetX = gesture.x + (nfx - primary.x);
-        targetY = gesture.y + (nfy - primary.y);
+    if (snapOn && gesture.points.length > 0) {
+      const followX = fx - gesture.x;
+      const followY = fy - gesture.y;
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const item of gesture.points) {
+        const [sx, sy] = project(item.x + followX, item.y + followY, fitRef.current);
+        minX = Math.min(minX, sx);
+        minY = Math.min(minY, sy);
+        maxX = Math.max(maxX, sx);
+        maxY = Math.max(maxY, sy);
       }
+      const rect = event.currentTarget.getBoundingClientRect();
+      const shift = snapBoxToGrid(
+        { minX, minY, maxX, maxY },
+        rect.width,
+        rect.height,
+        gridSize,
+        viewRef.current.zoom,
+        viewRef.current.panX,
+        viewRef.current.panY,
+      );
+      const scale = fitRef.current.scale || 1;
+      targetX = gesture.x + followX + shift.x / scale;
+      targetY = gesture.y + followY + shift.y / scale;
     }
     const dx = targetX - gesture.x;
     const dy = targetY - gesture.y;

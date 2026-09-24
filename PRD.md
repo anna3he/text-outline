@@ -18,8 +18,8 @@ The word starts as **Anna He**.
 4. Change the text, the typeface, or the letter spacing. The outlines rebuild, the word stays centred, and every drag is discarded.
 5. Reset points. The current word returns to the typeface. The point count stays where the dial left it.
 6. Vector points. A dial from 1 to 8. 1 is sparse. 8 is the old minimum: every anchor on the typeface, and no denser. The dial only changes how many points appear on hover. It does not move or reshape the letters.
-7. Grid. Off by default. Turn it on and a stepped cell-size dial appears, plus a snap toggle. Turn it off and both hide. The grid covers the whole screen, behind the panel, and zooms with the canvas. With snap on, a dragged selection jumps so the point under the pointer lands on a grid intersection. The rest of the selection keeps its shape.
-8. Zoom. Scroll or pinch the canvas. **Fit to screen** clears the zoom and places the word in the middle of the current viewport.
+7. Grid. Off by default. Turn it on and a stepped cell-size dial appears, plus a snap toggle. Turn it off and both hide. The grid covers the whole screen, behind the panel, and zooms with the canvas. With snap on, the nearer edge of the selection lands on a grid line. The centre of the selection is not what snaps. The rest of the selection keeps its shape.
+8. Zoom and pan. A mouse wheel or a pinch zooms. A trackpad swipe, a middle-mouse drag, or the arrow keys move the canvas. **Fit to screen** clears the zoom and pan and places the word in the middle of the current viewport.
 9. Hide panel. The chevron beside the theme icon removes the card. A small button in the same corner shows it again.
 10. Export SVG. Downloads the current outlines, cropped to the letterforms.
 11. Dark mode. A sun/moon icon in the top-right of the panel. Light is the default grey system. Dark inverts the field, panel, and letterforms. Points stay blue.
@@ -40,7 +40,7 @@ The panel is DialKit, inline.
 | Vector points | 1 is the fewest points. 8 shows every typeface anchor, which used to be the minimum. Does not move the letters. |
 | Grid | Shows or hides a grid across the whole screen. |
 | Grid size | Visible only while the grid is on. Cell size in pixels, stepped. |
-| Snap | Visible only while the grid is on. Off by default. Drags land on grid intersections. |
+| Snap | Visible only while the grid is on. Off by default. The nearer edge of a drag lands on a grid line. |
 | Export SVG | Downloads an SVG fitted to the current outlines. |
 | Reset points | Restores the current word’s outlines. |
 | Fit to screen | Centres the word in the current window. |
