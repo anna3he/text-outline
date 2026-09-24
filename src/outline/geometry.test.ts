@@ -94,9 +94,15 @@ const master = contoursToOutline(square, 1);
 const before = outlinePath(master, { scale: 1, tx: 0, ty: 0 });
 const sparse = pointsAlong(master, 1);
 const full = pointsAlong(master, 8);
+const dense = pointsAlong(master, 15);
+const midstep = pointsAlong(master, 9);
 assert.equal(full.length, 4);
 assert.equal(sparse.length, 1);
+assert.equal(dense.length, 32);
+assert.equal(midstep.length, 8);
+assert.ok(midstep.some((point) => Math.abs(point.x - 50) < 0.05 && Math.abs(point.y) < 0.05 && Math.abs(point.t - 0.5) < 0.001));
 assert.ok(sparse.length < full.length);
+assert.ok(full.length < dense.length);
 assert.equal(outlinePath(master, { scale: 1, tx: 0, ty: 0 }), before);
 assert.equal(sparse[0]?.t, 0);
 

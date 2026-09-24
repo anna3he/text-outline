@@ -41,7 +41,7 @@ function buildDial(showGridSize: boolean, gridSize: number, snapToGrid: boolean)
       default: "serif",
     },
     letterSpacing: [0, -0.2, 0.6, 0.01] as [number, number, number, number],
-    vectorPoints: [1, 1, 8, 1] as [number, number, number, number],
+    vectorPoints: [1, 1, 15, 1] as [number, number, number, number],
     grid: false,
     ...(showGridSize
       ? {

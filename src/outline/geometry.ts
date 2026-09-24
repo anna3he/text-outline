@@ -380,29 +380,52 @@ export type CurvePoint = {
 };
 
 /**
- * Hover points only. Level 8 shows every anchor — the old minimum.
- * Level 1 keeps about an eighth of those anchors, spread around each contour.
- * The filled outline does not move.
+ * Hover points only. The dial runs 1–15. 8, the middle, is every typeface anchor.
+ * 1–7 keep a fraction of those anchors. 9–15 add samples along each curve, up to
+ * eight per segment at 15. The filled outline does not move.
  */
 export function pointsAlong(outlines: Outline[], level: number): CurvePoint[] {
-  const detail = Math.min(8, Math.max(1, Math.round(level)));
+  const detail = Math.min(15, Math.max(1, Math.round(level)));
   const points: CurvePoint[] = [];
   outlines.forEach((outline, contour) => {
     const count = outline.anchors.length;
     if (count === 0) return;
-    const want = detail >= 8 ? count : Math.max(1, Math.round((count * detail) / 8));
-    const take = Math.min(count, want);
-    const used = new Set<number>();
-    for (let i = 0; i < take; i++) {
-      const index = Math.floor((i * count) / take) % count;
-      if (used.has(index)) continue;
-      used.add(index);
-      const anchor = outline.anchors[index];
-      if (!anchor) continue;
-      points.push({ contour, seg: index, t: 0, x: anchor.x, y: anchor.y });
+    if (detail < 8) {
+      const take = Math.min(count, Math.max(1, Math.round((count * detail) / 8)));
+      const used = new Set<number>();
+      for (let i = 0; i < take; i++) {
+        const index = Math.floor((i * count) / take) % count;
+        if (used.has(index)) continue;
+        used.add(index);
+        const anchor = outline.anchors[index];
+        if (!anchor) continue;
+        points.push({ contour, seg: index, t: 0, x: anchor.x, y: anchor.y });
+      }
+      return;
+    }
+    const samples = detail - 7;
+    for (let seg = 0; seg < count; seg++) {
+      for (let step = 0; step < samples; step++) {
+        const t = step / samples;
+        const at = cubicOn(outline, seg, t);
+        points.push({ contour, seg, t, x: at.x, y: at.y });
+      }
     }
   });
   return points;
+}
+
+function cubicOn(outline: Outline, seg: number, t: number): Vec {
+  const count = outline.anchors.length;
+  const start = outline.anchors[seg];
+  const end = outline.anchors[(seg + 1) % count];
+  const handle = outline.segs[seg];
+  if (!start || !end || !handle || t <= 1e-6) return start ?? { x: 0, y: 0 };
+  const u = 1 - t;
+  return {
+    x: u * u * u * start.x + 3 * u * u * t * handle.c1x + 3 * u * t * t * handle.c2x + t * t * t * end.x,
+    y: u * u * u * start.y + 3 * u * u * t * handle.c1y + 3 * u * t * t * handle.c2y + t * t * t * end.y,
+  };
 }
 
 export function hitCurve(x: number, y: number, points: CurvePoint[], fit: Fit, radius = 16): CurvePoint | null {
