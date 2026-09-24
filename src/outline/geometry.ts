@@ -380,30 +380,17 @@ export type CurvePoint = {
 };
 
 /**
- * Hover points only. The dial runs 1–15. 8, the middle, is every typeface anchor.
- * 1–7 keep a fraction of those anchors. 9–15 add samples along each curve, up to
+ * Hover points only. The dial runs 1–15. Level 1 puts one point on every edge
+ * (each typeface anchor). Higher levels add samples along those edges, up to
  * eight per segment at 15. The filled outline does not move.
  */
 export function pointsAlong(outlines: Outline[], level: number): CurvePoint[] {
   const detail = Math.min(15, Math.max(1, Math.round(level)));
+  const samples = 1 + Math.round(((detail - 1) / 14) * 7);
   const points: CurvePoint[] = [];
   outlines.forEach((outline, contour) => {
     const count = outline.anchors.length;
     if (count === 0) return;
-    if (detail < 8) {
-      const take = Math.min(count, Math.max(1, Math.round((count * detail) / 8)));
-      const used = new Set<number>();
-      for (let i = 0; i < take; i++) {
-        const index = Math.floor((i * count) / take) % count;
-        if (used.has(index)) continue;
-        used.add(index);
-        const anchor = outline.anchors[index];
-        if (!anchor) continue;
-        points.push({ contour, seg: index, t: 0, x: anchor.x, y: anchor.y });
-      }
-      return;
-    }
-    const samples = detail - 7;
     for (let seg = 0; seg < count; seg++) {
       for (let step = 0; step < samples; step++) {
         const t = step / samples;
