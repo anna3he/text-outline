@@ -542,6 +542,29 @@ export default function App() {
         }}
       >
         <div className="chip">{notice || chip}</div>
+        <button
+          type="button"
+          className="fit"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            setSize({ w, h });
+            const panel = document.querySelector(".panel");
+            const panelTop = panel?.getBoundingClientRect().top ?? h;
+            const visibleH = w <= 800 && panel ? Math.max(120, panelTop - 12) : h;
+            if (visibleH >= h - 8) {
+              setView({ zoom: 1, panX: 0, panY: 0 });
+              return;
+            }
+            const base = computeFit(w, h, boundsRef.current);
+            const fitted = computeFit(w, visibleH, boundsRef.current);
+            const zoom = base.scale > 0 ? fitted.scale / base.scale : 1;
+            setView({ zoom, panX: 0, panY: visibleH / 2 - h / 2 });
+          }}
+        >
+          Fit to screen
+        </button>
         {error ? <p className="stage-message">{error}</p> : null}
         {!error && !fontsReady ? <p className="fallback-word">Anna He</p> : null}
         {!error && fontsReady && !trimmed ? <p className="stage-message">Type a word</p> : null}
@@ -593,18 +616,6 @@ export default function App() {
         ) : null}
       </main>
 
-      <div className="dock">
-        <button
-          type="button"
-          className="fit"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => {
-            setSize({ w: window.innerWidth, h: window.innerHeight });
-            setView({ zoom: 1, panX: 0, panY: 0 });
-          }}
-        >
-          Fit to screen
-        </button>
       {panelOpen ? (
         <aside className="panel">
           <header className="mast">
@@ -642,7 +653,6 @@ export default function App() {
           <ChevronIcon />
         </button>
       )}
-      </div>
     </div>
   );
 }
