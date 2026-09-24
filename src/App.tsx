@@ -542,17 +542,6 @@ export default function App() {
         }}
       >
         <div className="chip">{notice || chip}</div>
-        <button
-          type="button"
-          className="fit"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={() => {
-            setSize({ w: window.innerWidth, h: window.innerHeight });
-            setView({ zoom: 1, panX: 0, panY: 0 });
-          }}
-        >
-          Fit to screen
-        </button>
         {error ? <p className="stage-message">{error}</p> : null}
         {!error && !fontsReady ? <p className="fallback-word">Anna He</p> : null}
         {!error && fontsReady && !trimmed ? <p className="stage-message">Type a word</p> : null}
@@ -604,6 +593,18 @@ export default function App() {
         ) : null}
       </main>
 
+      <div className="dock">
+        <button
+          type="button"
+          className="fit"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            setSize({ w: window.innerWidth, h: window.innerHeight });
+            setView({ zoom: 1, panX: 0, panY: 0 });
+          }}
+        >
+          Fit to screen
+        </button>
       {panelOpen ? (
         <aside className="panel">
           <header className="mast">
@@ -641,6 +642,7 @@ export default function App() {
           <ChevronIcon />
         </button>
       )}
+      </div>
     </div>
   );
 }
